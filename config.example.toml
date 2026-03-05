@@ -1,0 +1,18 @@
+# 微信公众号配置
+wechat_app_id = "your_app_id"
+wechat_app_secret = "your_app_secret"
+
+# 日志配置
+[log]
+# 日志级别: debug, info, warn, error
+level = "debug"
+# 日志格式: json, console
+format = "json"
+
+# MCP服务配置
+[mcp]
+# 协议类型: stdio, http, sse
+protocol = "http"
+# HTTP监听地址
+host = "0.0.0.0"
+port = 7990
