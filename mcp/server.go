@@ -1,0 +1,473 @@
+package mcp
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/wechat"
+	"github.com/silenceper/wechat/v2/officialaccount/draft"
+	"go.uber.org/zap"
+)
+
+// Server MCP服务器
+type Server struct {
+	svc    *wechat.Service
+	config *config.Config
+	log    *zap.Logger
+}
+
+// New 创建MCP服务器
+func New(cfg *config.Config, logger *zap.Logger) *Server {
+	svc := wechat.NewService(cfg, logger)
+	return &Server{
+		svc:    svc,
+		config: cfg,
+		log:    logger,
+	}
+}
+
+// Run 启动服务器
+func (s *Server) Run() error {
+	s.log.Info("Initializing MCP Server",
+		zap.String("name", "WeChat MCP Server"),
+		zap.String("version", "1.0.0"),
+		zap.String("protocol", s.config.MCP.Protocol),
+	)
+
+	mcpServer := server.NewMCPServer(
+		"WeChat MCP Server",
+		"1.0.0",
+		server.WithToolCapabilities(true),
+		server.WithResourceCapabilities(true, true),
+		server.WithLogging(),
+		server.WithRecovery(),
+	)
+
+	// 注册工具
+	s.registerTools(mcpServer)
+	s.log.Info("MCP tools registered successfully")
+
+	// 根据配置选择协议
+	switch s.config.MCP.Protocol {
+	case "http":
+		return s.runHTTP(mcpServer)
+	case "sse":
+		return s.runSSE(mcpServer)
+	default:
+		s.log.Info("Starting STDIO server (waiting for client connection...)")
+		return server.ServeStdio(mcpServer)
+	}
+}
+
+// runHTTP 启动HTTP服务器
+func (s *Server) runHTTP(mcpServer *server.MCPServer) error {
+	addr := fmt.Sprintf("%s:%d", s.config.MCP.Host, s.config.MCP.Port)
+	s.log.Info("Starting StreamableHTTP server",
+		zap.String("addr", addr),
+	)
+
+	httpServer := server.NewStreamableHTTPServer(mcpServer)
+	if err := httpServer.Start(addr); err != nil {
+		s.log.Error("HTTP server failed to start", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// runSSE 启动SSE服务器
+func (s *Server) runSSE(mcpServer *server.MCPServer) error {
+	addr := fmt.Sprintf("%s:%d", s.config.MCP.Host, s.config.MCP.Port)
+	s.log.Info("Starting SSE server",
+		zap.String("addr", addr),
+	)
+
+	sseServer := server.NewSSEServer(mcpServer)
+	if err := sseServer.Start(addr); err != nil {
+		s.log.Error("SSE server failed to start", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// registerTools 注册所有工具
+func (s *Server) registerTools(mcpServer *server.MCPServer) {
+	s.log.Debug("Registering MCP tools...")
+
+	// 1. 上传素材工具
+	mcpServer.AddTool(
+		mcp.NewTool("upload_material",
+			mcp.WithDescription("上传图片素材到微信公众号"),
+			mcp.WithString("file_path",
+				mcp.Required(),
+				mcp.Description("本地文件路径或HTTP URL"),
+			),
+			mcp.WithBoolean("retry",
+				mcp.Description("是否启用重试，默认false"),
+			),
+		),
+		s.uploadMaterialHandler,
+	)
+	s.log.Debug("Tool registered: upload_material")
+
+	// 2. 创建草稿工具
+	mcpServer.AddTool(
+		mcp.NewTool("create_draft",
+			mcp.WithDescription("创建微信公众号文章草稿"),
+			mcp.WithString("title",
+				mcp.Required(),
+				mcp.Description("文章标题"),
+			),
+			mcp.WithString("content",
+				mcp.Required(),
+				mcp.Description("文章正文内容(支持HTML)"),
+			),
+			mcp.WithString("author",
+				mcp.Description("作者名称"),
+			),
+			mcp.WithString("digest",
+				mcp.Description("文章摘要"),
+			),
+			mcp.WithString("content_source_url",
+				mcp.Description("原文链接"),
+			),
+			mcp.WithString("thumb_media_id",
+				mcp.Required(),
+				mcp.Description("封面图片media_id"),
+			),
+		),
+		s.createDraftHandler,
+	)
+	s.log.Debug("Tool registered: create_draft")
+
+	// 3. 创建小绿书草稿工具
+	mcpServer.AddTool(
+		mcp.NewTool("create_newspic_draft",
+			mcp.WithDescription("创建微信公众号小绿书草稿"),
+			mcp.WithString("title",
+				mcp.Required(),
+				mcp.Description("文章标题"),
+			),
+			mcp.WithString("content",
+				mcp.Required(),
+				mcp.Description("文章正文内容"),
+			),
+			mcp.WithArray("image_paths",
+				mcp.Required(),
+				mcp.Description("图片路径列表，支持本地路径或HTTP URL"),
+				mcp.Items(map[string]any{"type": "string"}),
+			),
+		),
+		s.createNewspicDraftHandler,
+	)
+	s.log.Debug("Tool registered: create_newspic_draft")
+
+	// 4. 获取AccessToken工具
+	mcpServer.AddTool(
+		mcp.NewTool("get_access_token",
+			mcp.WithDescription("获取微信公众号AccessToken（用于调试）"),
+		),
+		s.getAccessTokenHandler,
+	)
+	s.log.Debug("Tool registered: get_access_token")
+
+	// 5. 下载文件工具
+	mcpServer.AddTool(
+		mcp.NewTool("download_file",
+			mcp.WithDescription("下载文件到临时目录，或验证本地文件路径"),
+			mcp.WithString("url_or_path",
+				mcp.Required(),
+				mcp.Description("文件URL或本地路径"),
+			),
+		),
+		s.downloadFileHandler,
+	)
+	s.log.Debug("Tool registered: download_file")
+}
+
+// ========== 工具处理器 ==========
+
+// uploadMaterialHandler 上传素材处理器
+func (s *Server) uploadMaterialHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	toolName := "upload_material"
+
+	s.log.Info("Tool called", zap.String("tool", toolName))
+
+	args := request.GetArguments()
+	filePath, ok := args["file_path"].(string)
+	if !ok || filePath == "" {
+		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "file_path"))
+		return mcp.NewToolResultError("file_path is required"), nil
+	}
+
+	retry, _ := args["retry"].(bool)
+	s.log.Debug("Tool arguments",
+		zap.String("tool", toolName),
+		zap.String("file_path", filePath),
+		zap.Bool("retry", retry),
+	)
+
+	var result *wechat.UploadMaterialResult
+	var err error
+
+	if retry {
+		s.log.Debug("Using retry mechanism", zap.String("tool", toolName), zap.Int("max_retries", 3))
+		result, err = s.svc.UploadMaterialWithRetry(filePath, 3)
+	} else {
+		result, err = s.svc.UploadMaterial(filePath)
+	}
+
+	duration := time.Since(startTime)
+
+	if err != nil {
+		s.log.Error("Tool execution failed",
+			zap.String("tool", toolName),
+			zap.Error(err),
+			zap.Duration("duration", duration),
+		)
+		return mcp.NewToolResultError(fmt.Sprintf("upload failed: %v", err)), nil
+	}
+
+	s.log.Info("Tool executed successfully",
+		zap.String("tool", toolName),
+		zap.String("media_id", maskMediaID(result.MediaID)),
+		zap.Duration("duration", duration),
+	)
+
+	return mcp.NewToolResultText(fmt.Sprintf("素材上传成功!\nMediaID: %s\nURL: %s", result.MediaID, result.WechatURL)), nil
+}
+
+// createDraftHandler 创建草稿处理器
+func (s *Server) createDraftHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	toolName := "create_draft"
+
+	s.log.Info("Tool called", zap.String("tool", toolName))
+
+	args := request.GetArguments()
+
+	title, ok := args["title"].(string)
+	if !ok || title == "" {
+		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "title"))
+		return mcp.NewToolResultError("title is required"), nil
+	}
+
+	content, ok := args["content"].(string)
+	if !ok || content == "" {
+		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "content"))
+		return mcp.NewToolResultError("content is required"), nil
+	}
+
+	// 获取可选参数
+	author, _ := args["author"].(string)
+	digest, _ := args["digest"].(string)
+	contentSourceURL, _ := args["content_source_url"].(string)
+	thumbMediaID, _ := args["thumb_media_id"].(string)
+
+	s.log.Debug("Tool arguments",
+		zap.String("tool", toolName),
+		zap.String("title", title),
+		zap.String("author", author),
+		zap.String("thumb_media_id", thumbMediaID),
+	)
+
+	article := &draft.Article{
+		Title:            title,
+		Content:          content,
+		Author:           author,
+		Digest:           digest,
+		ContentSourceURL: contentSourceURL,
+		ThumbMediaID:     thumbMediaID,
+	}
+
+	result, err := s.svc.CreateDraft([]*draft.Article{article})
+	duration := time.Since(startTime)
+
+	if err != nil {
+		s.log.Error("Tool execution failed",
+			zap.String("tool", toolName),
+			zap.Error(err),
+			zap.Duration("duration", duration),
+		)
+		return mcp.NewToolResultError(fmt.Sprintf("create draft failed: %v", err)), nil
+	}
+
+	s.log.Info("Tool executed successfully",
+		zap.String("tool", toolName),
+		zap.String("media_id", maskMediaID(result.MediaID)),
+		zap.Duration("duration", duration),
+	)
+
+	return mcp.NewToolResultText(fmt.Sprintf("草稿创建成功!\nMediaID: %s\n查看链接: %s", result.MediaID, result.DraftURL)), nil
+}
+
+// createNewspicDraftHandler 创建小绿书草稿处理器
+func (s *Server) createNewspicDraftHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	toolName := "create_newspic_draft"
+
+	s.log.Info("Tool called", zap.String("tool", toolName))
+
+	args := request.GetArguments()
+
+	title, ok := args["title"].(string)
+	if !ok || title == "" {
+		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "title"))
+		return mcp.NewToolResultError("title is required"), nil
+	}
+
+	content, ok := args["content"].(string)
+	if !ok || content == "" {
+		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "content"))
+		return mcp.NewToolResultError("content is required"), nil
+	}
+
+	// 处理图片
+	imagePaths, ok := args["image_paths"].([]any)
+	if !ok || len(imagePaths) == 0 {
+		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "image_paths"))
+		return mcp.NewToolResultError("image_paths is required and must not be empty"), nil
+	}
+
+	s.log.Debug("Uploading images for newspic",
+		zap.String("tool", toolName),
+		zap.Int("image_count", len(imagePaths)),
+	)
+
+	// 上传图片素材
+	imageList := make([]wechat.NewspicImageItem, 0, len(imagePaths))
+	for i, path := range imagePaths {
+		pathStr, ok := path.(string)
+		if !ok {
+			s.log.Warn("Invalid image path type", zap.String("tool", toolName), zap.Int("index", i))
+			continue
+		}
+
+		s.log.Debug("Uploading image", zap.String("tool", toolName), zap.Int("index", i), zap.String("path", pathStr))
+
+		result, err := s.svc.UploadMaterial(pathStr)
+		if err != nil {
+			s.log.Error("Image upload failed",
+				zap.String("tool", toolName),
+				zap.Int("index", i),
+				zap.Error(err),
+			)
+			return mcp.NewToolResultError(fmt.Sprintf("upload image failed: %v", err)), nil
+		}
+
+		imageList = append(imageList, wechat.NewspicImageItem{
+			ImageMediaID: result.MediaID,
+		})
+	}
+
+	newspicArticle := wechat.NewspicArticle{
+		Title:       title,
+		Content:     content,
+		ArticleType: "newspic",
+		ImageInfo: wechat.NewspicImageInfo{
+			ImageList: imageList,
+		},
+	}
+
+	s.log.Debug("Creating newspic draft", zap.String("tool", toolName))
+
+	result, err := s.svc.CreateNewspicDraft([]wechat.NewspicArticle{newspicArticle})
+	duration := time.Since(startTime)
+
+	if err != nil {
+		s.log.Error("Tool execution failed",
+			zap.String("tool", toolName),
+			zap.Error(err),
+			zap.Duration("duration", duration),
+		)
+		return mcp.NewToolResultError(fmt.Sprintf("create newspic draft failed: %v", err)), nil
+	}
+
+	s.log.Info("Tool executed successfully",
+		zap.String("tool", toolName),
+		zap.String("media_id", maskMediaID(result.MediaID)),
+		zap.Duration("duration", duration),
+	)
+
+	return mcp.NewToolResultText(fmt.Sprintf("小绿书草稿创建成功!\nMediaID: %s\n查看链接: %s", result.MediaID, result.DraftURL)), nil
+}
+
+// getAccessTokenHandler 获取AccessToken处理器
+func (s *Server) getAccessTokenHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	toolName := "get_access_token"
+
+	s.log.Info("Tool called", zap.String("tool", toolName))
+
+	result, err := s.svc.GetAccessToken()
+	duration := time.Since(startTime)
+
+	if err != nil {
+		s.log.Error("Tool execution failed",
+			zap.String("tool", toolName),
+			zap.Error(err),
+			zap.Duration("duration", duration),
+		)
+		return mcp.NewToolResultError(fmt.Sprintf("get access token failed: %v", err)), nil
+	}
+
+	s.log.Info("Tool executed successfully",
+		zap.String("tool", toolName),
+		zap.Duration("duration", duration),
+	)
+
+	return mcp.NewToolResultText(fmt.Sprintf("AccessToken: %s\nExpiresIn: %d秒", result.AccessToken, result.ExpiresIn)), nil
+}
+
+// downloadFileHandler 下载文件处理器
+func (s *Server) downloadFileHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	toolName := "download_file"
+
+	s.log.Info("Tool called", zap.String("tool", toolName))
+
+	args := request.GetArguments()
+
+	urlOrPath, ok := args["url_or_path"].(string)
+	if !ok || urlOrPath == "" {
+		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "url_or_path"))
+		return mcp.NewToolResultError("url_or_path is required"), nil
+	}
+
+	s.log.Debug("Downloading file",
+		zap.String("tool", toolName),
+		zap.String("url_or_path", urlOrPath),
+	)
+
+	path, err := wechat.DownloadFile(urlOrPath)
+	duration := time.Since(startTime)
+
+	if err != nil {
+		s.log.Error("Tool execution failed",
+			zap.String("tool", toolName),
+			zap.Error(err),
+			zap.Duration("duration", duration),
+		)
+		return mcp.NewToolResultError(fmt.Sprintf("download file failed: %v", err)), nil
+	}
+
+	s.log.Info("Tool executed successfully",
+		zap.String("tool", toolName),
+		zap.String("local_path", path),
+		zap.Duration("duration", duration),
+	)
+
+	return mcp.NewToolResultText(fmt.Sprintf("文件路径: %s", path)), nil
+}
+
+// maskMediaID 遮蔽 media_id 用于日志
+func maskMediaID(id string) string {
+	if id == "" || len(id) < 8 {
+		return "***"
+	}
+	return id[:4] + "***" + id[len(id)-4:]
+}
