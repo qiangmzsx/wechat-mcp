@@ -9,6 +9,12 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const (
+	// 环境变量名
+	envWechatAppID     = "WECHAT_APP_ID"
+	envWechatAppSecret = "WECHAT_APP_SECRET"
+)
+
 // Config 应用配置
 type Config struct {
 	WechatAppID     string `toml:"wechat_app_id"`
@@ -49,8 +55,16 @@ func Load(path string) (*Config, error) {
 		cfg.Log.Format = "json"
 	}
 
+	// 优先从环境变量读取，环境变量优先级高于配置文件
+	if appID := os.Getenv(envWechatAppID); appID != "" {
+		cfg.WechatAppID = appID
+	}
+	if appSecret := os.Getenv(envWechatAppSecret); appSecret != "" {
+		cfg.WechatAppSecret = appSecret
+	}
+
 	if cfg.WechatAppID == "" || cfg.WechatAppSecret == "" {
-		return nil, fmt.Errorf("wechat_app_id and wechat_app_secret are required")
+		return nil, fmt.Errorf("wechat_app_id and wechat_app_secret are required (set via config or env: %s, %s)", envWechatAppID, envWechatAppSecret)
 	}
 
 	return &cfg, nil
