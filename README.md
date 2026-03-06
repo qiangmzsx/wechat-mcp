@@ -27,7 +27,7 @@ cd wechat-mcp
 
 ### 2. 配置
 
-复制配置文件并填入微信公众平台凭证：
+复制配置文件：
 
 ```bash
 cp config.example.toml config.toml
@@ -52,6 +52,10 @@ host = "0.0.0.0"
 port = 7990
 ```
 
+**注意**：也可以通过环境变量配置（优先级高于配置文件）：
+- `WECHAT_APP_ID`
+- `WECHAT_APP_SECRET`
+
 ### 3. 运行
 
 ```bash
@@ -64,14 +68,18 @@ port = 7990
 ./wechat-mcp -c /path/to/config.toml
 ```
 
+使用环境变量：
+
 ```bash
-go run .
+export WECHAT_APP_ID="your_app_id"
+export WECHAT_APP_SECRET="your_app_secret"
+./wechat-mcp
 ```
 
-指定配置文件：
+或一次性运行：
 
 ```bash
-go run . /path/to/config.toml
+WECHAT_APP_ID="xxx" WECHAT_APP_SECRET="xxx" ./wechat-mcp -c config.toml
 ```
 
 ## MCP 工具
@@ -97,10 +105,10 @@ go run . /path/to/config.toml
 **参数：**
 - `title` (必填): 文章标题
 - `content` (必填): 文章正文内容（支持 HTML）
+- `thumb_media_id` (必填): 封面图片 media_id
 - `author` (可选): 作者名称
 - `digest` (可选): 文章摘要
 - `content_source_url` (可选): 原文链接
-- `thumb_media_id` (必填): 封面图片 media_id
 
 **返回：**
 - MediaID
