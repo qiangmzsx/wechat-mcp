@@ -172,7 +172,29 @@ func (c *aiConverter) buildPrompt(req *ConvertRequest) (string, error) {
 		themePrompt, _ = c.theme.GetAIPrompt("default")
 	}
 
-	return c.prompt.BuildPrompt(themePrompt, req.Markdown, nil), nil
+	// 获取主题风格配置
+	style, err := c.theme.GetStyle(req.Theme)
+	if err != nil {
+		c.log.Warn("failed to get theme style, using defaults", zap.String("theme", req.Theme), zap.Error(err))
+		style = &StyleConfig{
+			PrimaryColor:    "#333333",
+			SecondaryColor:  "#666666",
+			BackgroundColor: "#ffffff",
+			TextColor:       "#333333",
+			AccentColor:     "#4a90d9",
+		}
+	}
+
+	// 构建颜色变量
+	vars := map[string]string{
+		"PRIMARY_COLOR":    style.PrimaryColor,
+		"SECONDARY_COLOR":  style.SecondaryColor,
+		"BACKGROUND_COLOR": style.BackgroundColor,
+		"TEXT_COLOR":       style.TextColor,
+		"ACCENT_COLOR":     style.AccentColor,
+	}
+
+	return c.prompt.BuildPrompt(themePrompt, req.Markdown, vars), nil
 }
 
 // getSystemPrompt 获取系统提示词

@@ -219,6 +219,7 @@ func TestAIConverter_ValidateRequest(t *testing.T) {
 3. **极客与商务**：Stripe 硅谷风、飞书效率蓝、Linear 暗夜模式、Bloomberg 终端机
 
 `,
+		Theme: "elegant",
 	}
 	result := conv.Convert(req)
 	if !result.Success {

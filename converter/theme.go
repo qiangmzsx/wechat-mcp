@@ -226,8 +226,8 @@ func (tm *themeManager) loadThemeFromFile(path string) error {
 // getDefaultThemeDir 获取默认主题目录
 func (tm *themeManager) getDefaultThemeDir() string {
 	// 优先使用项目根目录的 themes/ 文件夹
-	if _, err := os.Stat("converter/themes"); err == nil {
-		return "converter/themes"
+	if _, err := os.Stat("themes"); err == nil {
+		return "themes"
 	}
 
 	// 其次使用用户配置目录
@@ -238,7 +238,7 @@ func (tm *themeManager) getDefaultThemeDir() string {
 	}
 
 	// 返回默认路径
-	return "converter/themes"
+	return "themes"
 }
 
 // GetTheme 获取指定主题
