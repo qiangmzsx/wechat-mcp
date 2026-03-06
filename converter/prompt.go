@@ -73,6 +73,30 @@ func (pb *PromptBuilder) initBuiltInVariables() {
 			DefaultValue: "#333333",
 			Required:     false,
 		},
+		"SECONDARY_COLOR": {
+			Name:         "SECONDARY_COLOR",
+			Description:  "副强调色",
+			DefaultValue: "#666666",
+			Required:     false,
+		},
+		"BACKGROUND_COLOR": {
+			Name:         "BACKGROUND_COLOR",
+			Description:  "背景色",
+			DefaultValue: "#ffffff",
+			Required:     false,
+		},
+		"ACCENT_COLOR": {
+			Name:         "ACCENT_COLOR",
+			Description:  "强调色",
+			DefaultValue: "#4a90d9",
+			Required:     false,
+		},
+		"TEXT_COLOR": {
+			Name:         "TEXT_COLOR",
+			Description:  "文字颜色",
+			DefaultValue: "#333333",
+			Required:     false,
+		},
 	}
 }
 
