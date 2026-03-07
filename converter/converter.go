@@ -141,11 +141,6 @@ func (c *aiConverter) validateRequest(req *ConvertRequest) error {
 		return ErrEmptyMarkdownErr
 	}
 
-	// 如果没有配置 API Key，返回错误
-	if c.config.APIKey == "" {
-		return ErrMissingAPIKeyErr
-	}
-
 	// 如果没有指定主题，使用默认
 	if req.Theme == "" {
 		req.Theme = c.config.DefaultTheme

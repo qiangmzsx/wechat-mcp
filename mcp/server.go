@@ -3,11 +3,13 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/converter"
 	"github.com/qiangmzsx/wechat-mcp/wechat"
 	"github.com/silenceper/wechat/v2/officialaccount/draft"
 	"go.uber.org/zap"
@@ -15,18 +17,34 @@ import (
 
 // Server MCP服务器
 type Server struct {
-	svc    *wechat.Service
-	config *config.Config
-	log    *zap.Logger
+	svc       *wechat.Service
+	converter converter.Converter
+	config    *config.Config
+	log       *zap.Logger
 }
 
 // New 创建MCP服务器
 func New(cfg *config.Config, logger *zap.Logger) *Server {
 	svc := wechat.NewService(cfg, logger)
+
+	// 初始化 converter
+	var conv converter.Converter
+	if cfg.Converter.Enabled {
+		var err error
+		conv, err = converter.NewAIConverter(cfg, logger)
+		if err != nil {
+			logger.Warn("converter initialization failed, using simple converter", zap.Error(err))
+			conv = converter.NewSimpleConverter()
+		}
+	} else {
+		conv = converter.NewSimpleConverter()
+	}
+
 	return &Server{
-		svc:    svc,
-		config: cfg,
-		log:    logger,
+		svc:       svc,
+		converter: conv,
+		config:    cfg,
+		log:       logger,
 	}
 }
 
@@ -157,7 +175,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			),
 			mcp.WithArray("image_paths",
 				mcp.Required(),
-				mcp.Description("图片路径列表，支持本地路径或HTTP URL"),
+				mcp.Description("图片路径列表，支持本地路径或HTTP URL，不要超过20张图片"),
 				mcp.Items(map[string]any{"type": "string"}),
 			),
 		),
@@ -186,6 +204,34 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		s.downloadFileHandler,
 	)
 	s.log.Debug("Tool registered: download_file")
+
+	// 6. Markdown转HTML工具
+	mcpServer.AddTool(
+		mcp.NewTool("convert_markdown",
+			mcp.WithDescription("将Markdown内容转换为微信公众号兼容的HTML"),
+			mcp.WithString("markdown",
+				mcp.Required(),
+				mcp.Description("Markdown内容"),
+			),
+			mcp.WithString("theme",
+				mcp.Description("主题名称: default, elegant, tech, minimalist"),
+			),
+			mcp.WithString("custom_prompt",
+				mcp.Description("自定义提示词(可选)"),
+			),
+		),
+		s.convertMarkdownHandler,
+	)
+	s.log.Debug("Tool registered: convert_markdown")
+
+	// 7. 列出可用主题工具
+	mcpServer.AddTool(
+		mcp.NewTool("list_themes",
+			mcp.WithDescription("列出所有可用的主题"),
+		),
+		s.listThemesHandler,
+	)
+	s.log.Debug("Tool registered: list_themes")
 }
 
 // ========== 工具处理器 ==========
@@ -462,6 +508,87 @@ func (s *Server) downloadFileHandler(ctx context.Context, request mcp.CallToolRe
 	)
 
 	return mcp.NewToolResultText(fmt.Sprintf("文件路径: %s", path)), nil
+}
+
+// convertMarkdownHandler Markdown转换处理器
+func (s *Server) convertMarkdownHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	toolName := "convert_markdown"
+
+	s.log.Info("Tool called", zap.String("tool", toolName))
+
+	args := request.GetArguments()
+
+	markdown, ok := args["markdown"].(string)
+	if !ok || markdown == "" {
+		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "markdown"))
+		return mcp.NewToolResultError("markdown is required"), nil
+	}
+
+	// 获取可选参数
+	theme, _ := args["theme"].(string)
+	customPrompt, _ := args["custom_prompt"].(string)
+
+	s.log.Debug("Tool arguments",
+		zap.String("tool", toolName),
+		zap.String("theme", theme),
+		zap.Bool("has_custom_prompt", customPrompt != ""),
+		zap.Int("markdown_length", len(markdown)),
+	)
+
+	// 执行转换
+	req := &converter.ConvertRequest{
+		Markdown:     markdown,
+		Theme:        theme,
+		CustomPrompt: customPrompt,
+	}
+
+	result := s.converter.Convert(req)
+	duration := time.Since(startTime)
+
+	if !result.Success {
+		s.log.Error("Tool execution failed",
+			zap.String("tool", toolName),
+			zap.Error(fmt.Errorf(result.Error)),
+			zap.Duration("duration", duration),
+		)
+		return mcp.NewToolResultError(fmt.Sprintf("convert failed: %s", result.Error)), nil
+	}
+
+	s.log.Info("Tool executed successfully",
+		zap.String("tool", toolName),
+		zap.String("theme", result.Theme),
+		zap.Int("image_count", len(result.Images)),
+		zap.Int("html_length", len(result.HTML)),
+		zap.Duration("duration", duration),
+	)
+
+	// 返回HTML内容
+	return mcp.NewToolResultText(result.HTML), nil
+}
+
+// listThemesHandler 列出主题处理器
+func (s *Server) listThemesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	toolName := "list_themes"
+
+	s.log.Info("Tool called", zap.String("tool", toolName))
+
+	themeMgr := s.converter.GetThemeManager()
+	themes := themeMgr.ListThemes()
+
+	s.log.Info("Tool executed successfully",
+		zap.String("tool", toolName),
+		zap.Int("theme_count", len(themes)),
+	)
+
+	// 构建主题列表
+	var result strings.Builder
+	result.WriteString("可用主题:\n")
+	for _, theme := range themes {
+		result.WriteString(fmt.Sprintf("- %s\n", theme))
+	}
+
+	return mcp.NewToolResultText(result.String()), nil
 }
 
 // maskMediaID 遮蔽 media_id 用于日志

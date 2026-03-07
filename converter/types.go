@@ -95,7 +95,6 @@ func (e *ConvertError) Unwrap() error {
 // 定义错误变量
 var (
 	ErrEmptyMarkdownErr = &ConvertError{Code: ErrEmptyMarkdown, Message: "markdown content cannot be empty"}
-	ErrMissingAPIKeyErr = &ConvertError{Code: ErrMissingAPIKey, Message: "API key is required"}
 	ErrInvalidThemeErr  = &ConvertError{Code: ErrInvalidTheme, Message: "invalid theme name"}
 	ErrAIFailureErr     = &ConvertError{Code: ErrAIFailure, Message: "AI generation failed"}
 )
