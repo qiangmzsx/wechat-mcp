@@ -8,20 +8,22 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/provider"
+	"github.com/qiangmzsx/wechat-mcp/provider/factory"
 	"go.uber.org/zap"
 )
+
 
 // aiConverter AI 模式转换器
 type aiConverter struct {
 	log    *zap.Logger
 	config config.ConverterConfig
-	client anthropic.Client
+	client provider.Provider
 	theme  ThemeManager
 	prompt *PromptBuilder
 }
+
 
 // NewAIConverter 创建 AI 转换器
 func NewAIConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
@@ -29,16 +31,12 @@ func NewAIConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
 		return nil, fmt.Errorf("converter is disabled")
 	}
 
-	// 创建 Anthropic 客户端
-	var client anthropic.Client
-	if cfg.Converter.BaseURL != "" {
-		client = anthropic.NewClient(
-			option.WithAPIKey(cfg.Converter.APIKey),
-			option.WithBaseURL(cfg.Converter.BaseURL),
-		)
-	} else {
-		client = anthropic.NewClient(option.WithAPIKey(cfg.Converter.APIKey))
+	// 使用工厂创建 AI Provider
+	client, err := factory.NewProvider(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create provider failed: %w", err)
 	}
+
 
 	// 创建主题管理器并加载主题
 	themeMgr := NewThemeManager()
@@ -83,17 +81,17 @@ func (c *aiConverter) Convert(req *ConvertRequest) *ConvertResult {
 	images := c.ExtractImages(req.Markdown)
 	result.Images = images
 
-	// 调用 Anthropic API 生成 HTML
-	message, err := c.client.Messages.New(
+	// 调用 AI Provider 生成 HTML
+	resp, err := c.client.Chat(
 		context.Background(),
-		anthropic.MessageNewParams{
-			Model: anthropic.Model(c.config.Model),
-			System: []anthropic.TextBlockParam{
-				{Text: c.getSystemPrompt()},
+		provider.ChatRequest{
+			Messages: []provider.Message{
+				{Role: "system", Content: c.getSystemPrompt()},
+				{Role: "user", Content: prompt},
 			},
-			MaxTokens: int64(c.config.MaxTokens),
-			Messages: []anthropic.MessageParam{
-				anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
+			Model: c.config.Model,
+			Options: map[string]interface{}{
+				provider.OptMaxTokens: c.config.MaxTokens,
 			},
 		},
 	)
@@ -106,20 +104,13 @@ func (c *aiConverter) Convert(req *ConvertRequest) *ConvertResult {
 	}
 
 	// 提取 HTML 内容
-	if len(message.Content) == 0 {
+	if resp.Content == "" {
 		result.Error = "AI returned empty response"
 		return result
 	}
 
-	// 处理 Content - 遍历提取文本
-	var html string
-	for _, block := range message.Content {
-		// 检查是否是文本块
-		if block.Type == "text" {
-			html = block.Text
-			break
-		}
-	}
+	html := resp.Content
+
 
 	// 处理图片占位符
 	html = c.processImagePlaceholders(html, images)

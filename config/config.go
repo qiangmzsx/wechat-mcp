@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/qiangmzsx/wechat-mcp/provider"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -15,9 +16,9 @@ const (
 	envWechatAppID     = "WECHAT_APP_ID"
 	envWechatAppSecret = "WECHAT_APP_SECRET"
 
-	// Anthropic AI 环境变量
-	envAnthropicAPIKey  = "ANTHROPIC_API_KEY"
-	envAnthropicBaseURL = "ANTHROPIC_BASE_URL"
+	// AI Provider 环境变量
+	envAIAPIKey  = "AI_API_KEY"
+	envAIBaseURL = "AI_BASE_URL"
 )
 
 // Config 应用配置
@@ -45,6 +46,7 @@ type MCPConfig struct {
 // ConverterConfig AI 转换器配置
 type ConverterConfig struct {
 	Enabled      bool          `toml:"enabled"`
+	Provider     string        `toml:"provider"` // 供应商: anthropic, openai
 	APIKey       string        `toml:"api_key"`
 	BaseURL      string        `toml:"base_url"`
 	Model        string        `toml:"model"`
@@ -53,9 +55,6 @@ type ConverterConfig struct {
 	ThemeDir     string        `toml:"theme_dir"`
 	Timeout      time.Duration `toml:"timeout"`
 }
-
-// Load
-
 
 // Load 加载配置文件
 func Load(path string) (*Config, error) {
@@ -77,9 +76,23 @@ func Load(path string) (*Config, error) {
 	}
 
 	// Converter 默认配置
-	if cfg.Converter.Model == "" {
-		cfg.Converter.Model = "claude-sonnet-4-20250514"
+	// 设置默认 Provider
+	if cfg.Converter.Provider == "" {
+		cfg.Converter.Provider = string(provider.ProviderAnthropic)
 	}
+
+	// 根据 Provider 类型设置默认模型
+	if cfg.Converter.Model == "" {
+		switch provider.ProviderType(cfg.Converter.Provider) {
+		case provider.ProviderAnthropic:
+			cfg.Converter.Model = "claude-sonnet-4-5-20250929"
+		case provider.ProviderOpenAI:
+			cfg.Converter.Model = "gpt-4.1"
+		default:
+			cfg.Converter.Model = "claude-sonnet-4-5-20250929"
+		}
+	}
+
 	if cfg.Converter.MaxTokens == 0 {
 		cfg.Converter.MaxTokens = 4096
 	}
@@ -98,11 +111,11 @@ func Load(path string) (*Config, error) {
 		cfg.WechatAppSecret = appSecret
 	}
 
-	// Anthropic AI 配置环境变量
-	if apiKey := os.Getenv(envAnthropicAPIKey); apiKey != "" {
+	// AI Provider 环境变量（统一命名，支持所有供应商）
+	if apiKey := os.Getenv(envAIAPIKey); apiKey != "" {
 		cfg.Converter.APIKey = apiKey
 	}
-	if baseURL := os.Getenv(envAnthropicBaseURL); baseURL != "" {
+	if baseURL := os.Getenv(envAIBaseURL); baseURL != "" {
 		cfg.Converter.BaseURL = baseURL
 	}
 

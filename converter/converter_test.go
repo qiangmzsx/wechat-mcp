@@ -3,8 +3,10 @@ package converter
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/provider"
 	"go.uber.org/zap"
 )
 
@@ -169,17 +171,118 @@ func TestAIConverter_NewAIConverter(t *testing.T) {
 	}
 }
 
+// TestAIConverter_ProviderAnthropic 测试 Anthropic Provider
+func TestAIConverter_ProviderAnthropic(t *testing.T) {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		t.Skip("Skipping: ANTHROPIC_API_KEY not set")
+	}
+
+	logger := zap.NewNop()
+
+	cfg := &config.Config{
+		Converter: config.ConverterConfig{
+			Enabled:      true,
+			Provider:     string(provider.ProviderAnthropic),
+			APIKey:       apiKey,
+			Model:        "claude-sonnet-4-20250514",
+			MaxTokens:    1024,
+			Timeout:      60 * time.Second,
+			DefaultTheme: "default",
+		},
+	}
+
+	conv, err := NewAIConverter(cfg, logger)
+	if err != nil {
+		t.Fatalf("Failed to create AI converter: %v", err)
+	}
+
+	// 验证 Provider 类型
+	if conv.GetThemeManager() == nil {
+		t.Error("GetThemeManager() should not be nil")
+	}
+
+	// 测试转换
+	req := &ConvertRequest{
+		Markdown: "# 测试\n\n你好世界",
+		Theme:    "default",
+	}
+
+	result := conv.Convert(req)
+	if !result.Success {
+		t.Errorf("Convert failed: %s", result.Error)
+	}
+
+	if result.HTML == "" {
+		t.Error("Expected non-empty HTML")
+	}
+
+	t.Logf("Anthropic Provider test passed, HTML length: %d", len(result.HTML))
+}
+
+// TestAIConverter_ProviderOpenAI 测试 OpenAI Provider
+func TestAIConverter_ProviderOpenAI(t *testing.T) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		t.Skip("Skipping: OPENAI_API_KEY not set")
+	}
+
+	logger := zap.NewNop()
+
+	cfg := &config.Config{
+		Converter: config.ConverterConfig{
+			Enabled:      true,
+			Provider:     string(provider.ProviderOpenAI),
+			APIKey:       apiKey,
+			Model:        "gpt-4o-mini",
+			MaxTokens:    1024,
+			Timeout:      60 * time.Second,
+			DefaultTheme: "default",
+		},
+	}
+
+	conv, err := NewAIConverter(cfg, logger)
+	if err != nil {
+		t.Fatalf("Failed to create AI converter: %v", err)
+	}
+
+	// 验证 Provider 类型
+	if conv.GetThemeManager() == nil {
+		t.Error("GetThemeManager() should not be nil")
+	}
+
+	// 测试转换
+	req := &ConvertRequest{
+		Markdown: "# 测试\n\n你好世界",
+		Theme:    "default",
+	}
+
+	result := conv.Convert(req)
+	if !result.Success {
+		t.Errorf("Convert failed: %s", result.Error)
+	}
+
+	if result.HTML == "" {
+		t.Error("Expected non-empty HTML")
+	}
+
+	t.Logf("OpenAI Provider test passed, HTML length: %d", len(result.HTML))
+}
+
+// TestAIConverter_ProviderDefault 测试默认 Provider (Anthropic)
 var cfg = &config.Config{
 	Converter: config.ConverterConfig{
 		Enabled:      true,
-		APIKey:       os.Getenv("MINMAX_API_KEY"),
+		Provider:     "anthropic",
+		Timeout:      300 * time.Second,
+		APIKey:       os.Getenv("ANTHROPIC_API_KEY"),
 		BaseURL:      "https://api.minimaxi.com/anthropic",
 		Model:        "MiniMax-M2.5",
 		DefaultTheme: "default",
 	},
 }
 
-func TestAIConverter_ValidateRequest(t *testing.T) {
+func TestAIConverter_Convert(t *testing.T) {
 	logger := zap.NewNop()
 
 	conv, err := NewAIConverter(cfg, logger)
@@ -223,7 +326,69 @@ func TestAIConverter_ValidateRequest(t *testing.T) {
 	}
 	result := conv.Convert(req)
 	if !result.Success {
-		t.Error("Empty markdown should fail")
+		t.Errorf("Empty markdown should fail,%v", result.Error)
+	}
+
+	t.Log(result.HTML)
+	t.Log(result.Images)
+}
+
+func TestAIConverter_Convert_OpenAI(t *testing.T) {
+	logger := zap.NewNop()
+	var cfg = &config.Config{
+		Converter: config.ConverterConfig{
+			Enabled:      true,
+			Provider:     "openai",
+			Timeout:      300 * time.Second,
+			APIKey:       os.Getenv("OPENAI_API_KEY"),
+			BaseURL:      "https://api.minimaxi.com/v1",
+			Model:        "MiniMax-M2.5",
+			DefaultTheme: "default",
+		},
+	}
+
+	conv, err := NewAIConverter(cfg, logger)
+	if err != nil {
+		t.Skipf("Skipping: cannot create AI converter: %v", err)
+	}
+
+	// 测试空 Markdown
+	req := &ConvertRequest{
+		Markdown: `
+# Raphael Publish - 公众号排版大师
+
+> 欢迎使用 Raphael Publish，一款专为**微信公众号**与**内容创作者**设计的现代 Markdown 排版引擎！
+
+## 核心功能
+
+### 1. 魔法粘贴
+
+- **跨平台粘贴**：直接从**飞书、Notion、Word**甚至任意网页复制富文本，粘贴瞬间自动转换为纯净 Markdown
+- **智能清洗**：自动剥离冗余样式和乱码，只保留段落、粗体、列表、代码块等核心结构
+- **零学习成本**：不需要会写 Markdown，粘贴进来就能用
+- **图片直贴**：支持直接粘贴截图或剪贴板图片（Ctrl/Cmd + V），自动插入 Markdown 图片
+
+### 2. 多图排版
+
+支持朋友圈式的多列网格布局，比如下面自然形成的两图并排。通过 wechatCompat 引擎这些多图也能在微信中完美呈现：
+
+![](https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&h=400&fit=crop)
+![](https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&h=400&fit=crop)
+
+### 3. 30 套高定样式
+
+告别同质化的白底模板，30 套精心打磨的视觉主题任你切换（下方仅展示部分代表风格）：
+
+1. **极简与经典**：Mac 纯净白、微信公众号原生、Medium 博客风
+2. **深度阅读**：Claude 燕麦色、NYT 纽约时报、Retro 复古羊皮纸
+3. **极客与商务**：Stripe 硅谷风、飞书效率蓝、Linear 暗夜模式、Bloomberg 终端机
+
+`,
+		Theme: "elegant",
+	}
+	result := conv.Convert(req)
+	if !result.Success {
+		t.Errorf("Empty markdown should fail,%v", result.Error)
 	}
 
 	t.Log(result.HTML)
