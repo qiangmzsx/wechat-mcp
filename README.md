@@ -10,6 +10,7 @@
 - 创建小绿书（图片）草稿
 - 获取 AccessToken
 - 文件下载
+- **AI Markdown 转 HTML**（支持 Anthropic 和 OpenAI）
 
 ## 环境要求
 
@@ -36,7 +37,7 @@ cp config.example.toml config.toml
 编辑 `config.toml`：
 
 ```toml
-# 微信公众号配置
+# 微信公众号配置（必填）
 wechat_app_id = "your_app_id"
 wechat_app_secret = "your_app_secret"
 
@@ -50,11 +51,50 @@ format = "json"      # json, console
 protocol = "http"    # stdio, http, sse
 host = "0.0.0.0"
 port = 7990
+
+# AI 转换器配置（可选）
+[converter]
+enabled = false                      # 是否启用 AI 转换功能
+provider = "anthropic"              # 供应商: anthropic, openai
+api_key = ""                        # API Key
+base_url = ""                       # 自定义 API 地址
+# model 默认值: anthropic 为 claude-sonnet-4-20250514, openai 为 gpt-4o-mini
+model = "claude-sonnet-4-20250514"
+max_tokens = 4096                    # 最大 token 数
+default_theme = "default"           # 默认主题
+theme_dir = ""                      # 主题目录
+timeout = "60s"                     # 超时时间
 ```
 
-**注意**：也可以通过环境变量配置（优先级高于配置文件）：
-- `WECHAT_APP_ID`
-- `WECHAT_APP_SECRET`
+**配置说明：**
+
+| 配置项 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `wechat_app_id` | string | ✅ | - | 微信公众号 AppID |
+| `wechat_app_secret` | string | ✅ | - | 微信公众号 AppSecret |
+| `log.level` | string | - | `debug` | 日志级别：debug, info, warn, error |
+| `log.format` | string | - | `json` | 日志格式：json, console |
+| `mcp.protocol` | string | - | - | MCP 协议：stdio, http, sse |
+| `mcp.host` | string | - | - | MCP 服务地址 |
+| `mcp.port` | int | - | - | MCP 服务端口 |
+| `converter.enabled` | bool | - | `false` | 是否启用 AI 转换功能 |
+| `converter.provider` | string | - | `anthropic` | AI 供应商：anthropic, openai |
+| `converter.api_key` | string | - | - | API Key |
+| `converter.base_url` | string | - | - | 自定义 API 地址 |
+| `converter.model` | string | - | `claude-sonnet-4-20250514` (anthropic) / `gpt-4o-mini` (openai) | 使用的模型 |
+| `converter.max_tokens` | int | - | `4096` | 最大 token 数 |
+| `converter.default_theme` | string | - | `default` | 默认主题 |
+| `converter.theme_dir` | string | - | - | 主题目录 |
+| `converter.timeout` | string | - | `60s` | 超时时间 |
+
+**环境变量（优先级高于配置文件）：**
+
+| 环境变量 | 说明 |
+|---------|------|
+| `WECHAT_APP_ID` | 微信公众号 AppID |
+| `WECHAT_APP_SECRET` | 微信公众号 AppSecret |
+| `AI_API_KEY` | AI API Key（支持 Anthropic 和 OpenAI） |
+| `AI_BASE_URL` | 自定义 API 地址（支持所有供应商） |
 
 ### 3. 运行
 
@@ -151,6 +191,33 @@ WECHAT_APP_ID="xxx" WECHAT_APP_SECRET="xxx" ./wechat-mcp -c config.toml
 **返回：**
 - 本地文件路径
 
+---
+
+### convert_markdown
+
+将 Markdown 内容转换为微信公众号兼容的 HTML（需要启用 AI 转换器）。
+
+**参数：**
+- `markdown` (必填): Markdown 内容
+- `theme` (可选): 主题名称 (default, elegant, tech, minimalist)
+- `custom_prompt` (可选): 自定义提示词
+
+**返回：**
+- 转换后的 HTML 内容
+
+---
+
+### list_themes
+
+列出所有可用的主题。
+
+**参数：** 无
+
+**返回：**
+- 可用主题列表
+
+---
+
 ## 协议说明
 
 | 协议 | 说明 | 适用场景 |
@@ -167,4 +234,4 @@ WECHAT_APP_ID="xxx" WECHAT_APP_SECRET="xxx" ./wechat-mcp -c config.toml
 
 ## 许可证
 
-MIT
+本项目基于 GNU General Public License v3 (GPLv3) 开源，详见 [LICENSE](LICENSE) 文件。
