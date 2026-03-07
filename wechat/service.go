@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	neturl "net/url"
 	"os"
@@ -222,28 +221,6 @@ func DownloadFile(urlOrPath string) (string, error) {
 	}
 
 	return tmpPath, nil
-}
-
-// CreateMultipartFormData 创建 multipart 表单数据
-func CreateMultipartFormData(fieldName, filename string, data []byte) (string, *bytes.Buffer, string) {
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	part, err := writer.CreateFormFile(fieldName, filename)
-	if err != nil {
-		writer.Close()
-		return "", nil, ""
-	}
-
-	if _, err := part.Write(data); err != nil {
-		writer.Close()
-		return "", nil, ""
-	}
-
-	contentType := writer.FormDataContentType()
-	writer.Close()
-
-	return contentType, body, filename
 }
 
 // JSONMarshal 自定义 JSON 序列化

@@ -43,6 +43,16 @@ func main() {
 		zap.Int("port", cfg.MCP.Port),
 	)
 
+	logger.Info("Converter config",
+		zap.Bool("enabled", cfg.Converter.Enabled),
+		zap.String("model", cfg.Converter.Model),
+		zap.Int("max_tokens", cfg.Converter.MaxTokens),
+		zap.String("default_theme", cfg.Converter.DefaultTheme),
+		zap.String("theme_dir", cfg.Converter.ThemeDir),
+		zap.Duration("timeout", cfg.Converter.Timeout),
+		zap.String("base_url", cfg.Converter.BaseURL),
+	)
+
 	// 创建并运行MCP服务器
 	server := mcp.New(cfg, logger)
 	if err := server.Run(); err != nil {

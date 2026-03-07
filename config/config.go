@@ -44,15 +44,18 @@ type MCPConfig struct {
 
 // ConverterConfig AI 转换器配置
 type ConverterConfig struct {
-	Enabled      bool          // 是否启用 AI 转换
-	APIKey       string        // Anthropic API Key
-	BaseURL      string        // 自定义 API 地址
-	Model        string        // 使用的模型
-	MaxTokens    int           // 最大 token 数
-	DefaultTheme string        // 默认主题
-	ThemeDir     string        // 主题目录
-	Timeout      time.Duration // 超时时间
+	Enabled      bool          `toml:"enabled"`
+	APIKey       string        `toml:"api_key"`
+	BaseURL      string        `toml:"base_url"`
+	Model        string        `toml:"model"`
+	MaxTokens    int           `toml:"max_tokens"`
+	DefaultTheme string        `toml:"default_theme"`
+	ThemeDir     string        `toml:"theme_dir"`
+	Timeout      time.Duration `toml:"timeout"`
 }
+
+// Load
+
 
 // Load 加载配置文件
 func Load(path string) (*Config, error) {
