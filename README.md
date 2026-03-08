@@ -215,8 +215,78 @@ WECHAT_APP_ID="xxx" WECHAT_APP_SECRET="xxx" ./wechat-mcp -c config.toml
 
 **返回：**
 - 可用主题列表
-
 ---
+
+## 主题说明
+
+本项目内置了 4 个主题，可通过 `convert_markdown` 工具的 `theme` 参数指定。
+
+### 可用主题
+
+| 主题 | 说明 | 适用场景 |
+|------|------|----------|
+| `default` | 简洁大方的通用风格 | 通用场景，技术文章，生活分享 |
+| `elegant` | 精致柔和的排版风格 | 情感文章，文艺分享，生活随笔 |
+| `tech` | 简洁专业的技术风格 | 技术文章，编程教程，代码分享 |
+| `minimalist` | 简约清爽的阅读体验 | 深度阅读，思考类文章，简洁主义 |
+
+### 主题详细说明
+
+#### default (默认主题)
+
+简洁大方的通用风格，适合大多数公众号文章。
+
+- **配色**: 蓝灰色调，专业简洁
+- **字号**: 中等（16px）
+- **行高**: 1.75
+- **标签**: default, simple, general
+
+#### elegant (优雅主题)
+
+精致柔和的排版风格，给人温暖舒适的阅读体验。
+
+- **配色**: 柔和暖色调
+- **字号**: 中等
+- **行高**: 1.8
+- **标签**: elegant, soft, literary
+
+#### tech (技术主题)
+
+简洁专业的技术风格，适合程序员阅读。
+
+- **配色**: 深色系，高对比度
+- **代码块**: Monokai 风格深色背景
+- **行高**: 1.7
+- **标签**: tech, code, developer
+
+#### minimalist (极简主题)
+
+简约清爽的阅读体验，去除一切不必要的装饰。
+
+- **配色**: 黑白灰，纯粹阅读
+- **特点**: 大量留白，专注于内容
+- **行高**: 1.8
+- **标签**: minimalist, simple, clean
+
+### 使用示例
+
+```bash
+# 使用默认主题转换
+convert_markdown(markdown="# Hello", theme="default")
+
+# 使用技术主题转换
+convert_markdown(markdown="# 代码示例", theme="tech")
+
+# 使用优雅主题转换
+convert_markdown(markdown="# 随笔", theme="elegant")
+
+# 使用极简主题转换
+convert_markdown(markdown="# 深度思考", theme="minimalist")
+```
+
+### 自定义主题
+
+你可以在 `themes/` 目录下创建自定义主题配置文件（参考现有主题格式），或通过 `converter.theme_dir` 配置指定自定义主题目录。
 
 ## 协议说明
 

@@ -2,7 +2,9 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -88,8 +90,17 @@ func (s *Server) runHTTP(mcpServer *server.MCPServer) error {
 		zap.String("addr", addr),
 	)
 
-	httpServer := server.NewStreamableHTTPServer(mcpServer)
-	if err := httpServer.Start(addr); err != nil {
+	// 创建自定义 HTTP mux，添加健康检查端点
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", server.NewStreamableHTTPServer(mcpServer))
+	mux.HandleFunc("/health", s.healthHandler)
+
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		s.log.Error("HTTP server failed to start", zap.Error(err))
 		return err
 	}
@@ -103,12 +114,37 @@ func (s *Server) runSSE(mcpServer *server.MCPServer) error {
 		zap.String("addr", addr),
 	)
 
-	sseServer := server.NewSSEServer(mcpServer)
-	if err := sseServer.Start(addr); err != nil {
+	// 创建自定义 HTTP mux，添加健康检查端点
+	mux := http.NewServeMux()
+	mux.Handle("/sse", server.NewSSEServer(mcpServer))
+	mux.HandleFunc("/health", s.healthHandler)
+
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		s.log.Error("SSE server failed to start", zap.Error(err))
 		return err
 	}
 	return nil
+}
+
+// healthHandler 健康检查处理器
+func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	
+	response := map[string]interface{}{
+		"status":    "healthy",
+		"timestamp": time.Now().Unix(),
+		"service":   "WeChat MCP Server",
+		"version":   "1.0.0",
+	}
+	
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.log.Warn("Failed to encode health response", zap.Error(err))
+	}
 }
 
 // registerTools 注册所有工具
