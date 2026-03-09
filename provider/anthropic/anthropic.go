@@ -1,262 +1,194 @@
-// Package anthropic 提供 Anthropic (Claude) AI 供应商实现
+// Package anthropic provides Anthropic (Claude) AI provider implementation
 package anthropic
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
-	"time"
 
+	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/qiangmzsx/wechat-mcp/provider"
 )
 
-// Client Anthropic API 客户端
+// Client Anthropic API client
 type Client struct {
+	client    anthropic.Client
 	apiKey    string
 	baseURL   string
 	model     string
 	maxTokens int64
-	client    *http.Client
 }
 
-// NewClient 创建 Anthropic 客户端
+// NewClient creates Anthropic client
 func NewClient(apiKey, baseURL, model string, maxTokens int) *Client {
 	if baseURL == "" {
 		baseURL = "https://api.anthropic.com"
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
 
+	opts := []option.RequestOption{
+		option.WithAPIKey(apiKey),
+		option.WithBaseURL(baseURL),
+	}
+
 	return &Client{
+		client:    anthropic.NewClient(opts...),
 		apiKey:    apiKey,
 		baseURL:   baseURL,
 		model:     model,
 		maxTokens: int64(maxTokens),
-		client: &http.Client{
-			Timeout: 120 * time.Second,
-		},
 	}
 }
 
-// Name 返回供应商名称
+// Name returns provider name
 func (c *Client) Name() string {
 	return "anthropic"
 }
 
-// DefaultModel 返回默认模型
+// DefaultModel returns default model
 func (c *Client) DefaultModel() string {
 	return c.model
 }
 
-// Chat 发送聊天请求
+// Chat sends chat request
 func (c *Client) Chat(ctx context.Context, req provider.ChatRequest) (*provider.ChatResponse, error) {
-	// 构建请求体
-	body := map[string]interface{}{
-		"model":      c.resolveModel(req.Model),
-		"max_tokens": c.maxTokens,
-		"messages":   convertMessages(req.Messages),
+	// Build request params
+	params := anthropic.MessageNewParams{
+		Model:     c.resolveModel(req.Model),
+		MaxTokens: c.maxTokens,
 	}
 
-	// 添加 system 消息
+	// Add system message
 	for _, msg := range req.Messages {
 		if msg.Role == "system" {
-			body["system"] = []map[string]string{{"type": "text", "text": msg.Content}}
+			params.System = append(params.System, anthropic.TextBlockParam{
+				Text: msg.Content,
+			})
 			break
 		}
 	}
 
-	// 添加选项
+	// Add conversation messages
+	params.Messages = convertMessages(req.Messages)
+
+	// Add options
 	if v, ok := req.Options[provider.OptMaxTokens]; ok {
 		if maxTokens, ok := v.(int); ok {
-			body["max_tokens"] = maxTokens
+			params.MaxTokens = int64(maxTokens)
 		}
 	}
 
-	// 发送请求
-	respBody, err := c.doRequest(ctx, "/v1/messages", body)
+	// Send request
+	message, err := c.client.Messages.New(ctx, params)
 	if err != nil {
-		return nil, err
-	}
-	defer respBody.Close()
-
-	// 解析响应
-	var resp messageResponse
-	if err := json.NewDecoder(respBody).Decode(&resp); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf("anthropic API error: %w", err)
 	}
 
-	// 提取内容
+	// Extract content
 	var content string
-	for _, block := range resp.Content {
+	for _, block := range message.Content {
 		if block.Type == "text" {
-			content = block.Text
-			break
+			content += block.Text
 		}
 	}
 
 	return &provider.ChatResponse{
 		Content:      content,
-		FinishReason: resp.StopReason,
+		FinishReason: string(message.StopReason),
 		Usage: &provider.Usage{
-			PromptTokens:     resp.Usage.InputTokens,
-			CompletionTokens: resp.Usage.OutputTokens,
-			TotalTokens:      resp.Usage.InputTokens + resp.Usage.OutputTokens,
+			PromptTokens:     int(message.Usage.InputTokens),
+			CompletionTokens: int(message.Usage.OutputTokens),
+			TotalTokens:      int(message.Usage.InputTokens + message.Usage.OutputTokens),
 		},
 	}, nil
 }
 
-// ChatStream 流式聊天
+// ChatStream streaming chat
 func (c *Client) ChatStream(ctx context.Context, req provider.ChatRequest, onChunk func(provider.StreamChunk)) (*provider.ChatResponse, error) {
-	// 构建请求体
-	body := map[string]interface{}{
-		"model":      c.resolveModel(req.Model),
-		"max_tokens": c.maxTokens,
-		"messages":   convertMessages(req.Messages),
-		"stream":     true,
+	// Build request params
+	params := anthropic.MessageNewParams{
+		Model:     c.resolveModel(req.Model),
+		MaxTokens: c.maxTokens,
 	}
 
-	// 添加 system 消息
+	// Add system message
 	for _, msg := range req.Messages {
 		if msg.Role == "system" {
-			body["system"] = []map[string]string{{"type": "text", "text": msg.Content}}
+			params.System = append(params.System, anthropic.TextBlockParam{
+				Text: msg.Content,
+			})
 			break
 		}
 	}
 
-	// 发送请求
-	respBody, err := c.doRequest(ctx, "/v1/messages", body)
-	if err != nil {
-		return nil, err
-	}
-	defer respBody.Close()
+	// Add conversation messages
+	params.Messages = convertMessages(req.Messages)
 
-	// 读取流式响应
-	scanner := bufio.NewScanner(respBody)
+	// Send streaming request
+	stream := c.client.Messages.NewStreaming(ctx, params)
+
+	message := anthropic.Message{}
 	var content string
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.HasPrefix(line, "data:") {
-			continue
+	for stream.Next() {
+		event := stream.Current()
+		err := message.Accumulate(event)
+		if err != nil {
+			return nil, fmt.Errorf("accumulate event: %w", err)
 		}
 
-		data := strings.TrimPrefix(line, "data:")
-		data = strings.TrimPrefix(data, " ")
-
-		if data == "" || data == "[DONE]" {
-			break
-		}
-
-		var chunk streamChunk
-		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue
-		}
-
-		if len(chunk.Content) > 0 && chunk.Content[0].Type == "text" {
-			content += chunk.Content[0].Text
-			if onChunk != nil {
-				onChunk(provider.StreamChunk{Content: chunk.Content[0].Text})
+		// Handle content block deltas
+		switch eventVariant := event.AsAny().(type) {
+		case anthropic.ContentBlockDeltaEvent:
+			switch deltaVariant := eventVariant.Delta.AsAny().(type) {
+			case anthropic.TextDelta:
+				content += deltaVariant.Text
+				if onChunk != nil {
+					onChunk(provider.StreamChunk{Content: deltaVariant.Text})
+				}
 			}
-		}
-
-		if chunk.Type == "message_delta" && chunk.Delta.StopReason != "" {
+		case anthropic.MessageDeltaEvent:
 			if onChunk != nil {
 				onChunk(provider.StreamChunk{Done: true})
 			}
-			break
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("stream read error: %w", err)
+	if stream.Err() != nil {
+		return nil, fmt.Errorf("stream error: %w", stream.Err())
 	}
 
 	return &provider.ChatResponse{
 		Content:      content,
-		FinishReason: "stop",
+		FinishReason: string(message.StopReason),
 	}, nil
 }
 
-// resolveModel 解析模型名称
-func (c *Client) resolveModel(model string) string {
+// resolveModel resolves model name
+func (c *Client) resolveModel(model string) anthropic.Model {
 	if model == "" {
-		return c.model
+		return anthropic.Model(c.model)
 	}
-	return model
+	return anthropic.Model(model)
 }
 
-// doRequest 发送请求
-func (c *Client) doRequest(ctx context.Context, path string, body interface{}) (io.ReadCloser, error) {
-	data, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+path, strings.NewReader(string(data)))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", c.apiKey)
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
-
-	resp, err := c.client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, fmt.Errorf("API error: %s", string(respBody))
-	}
-
-	return resp.Body, nil
-}
-
-// convertMessages 转换消息格式
-func convertMessages(messages []provider.Message) []map[string]string {
-	result := make([]map[string]string, 0, len(messages))
+// convertMessages converts message format
+func convertMessages(messages []provider.Message) []anthropic.MessageParam {
+	result := make([]anthropic.MessageParam, 0, len(messages))
 	for _, msg := range messages {
 		if msg.Role == "system" {
-			continue // system 消息单独处理
+			continue // system message handled separately
 		}
-		result = append(result, map[string]string{
-			"role":    msg.Role,
-			"content": msg.Content,
+		role := anthropic.MessageParamRole(msg.Role)
+		result = append(result, anthropic.MessageParam{
+			Content: []anthropic.ContentBlockParamUnion{{
+				OfText: &anthropic.TextBlockParam{
+					Text: msg.Content,
+				},
+			}},
+			Role: role,
 		})
 	}
 	return result
-}
-
-// API 响应结构
-type messageResponse struct {
-	Type       string         `json:"type"`
-	Content    []contentBlock `json:"content"`
-	StopReason string         `json:"stop_reason"`
-	Usage      usage          `json:"usage"`
-}
-
-type contentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-type usage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
-}
-
-type streamChunk struct {
-	Type    string         `json:"type"`
-	Content []contentBlock `json:"content"`
-	Delta   deltaBlock     `json:"delta"`
-}
-
-type deltaBlock struct {
-	StopReason string `json:"stop_reason"`
 }
