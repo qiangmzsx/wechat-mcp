@@ -145,10 +145,9 @@ WECHAT_APP_ID="xxx" WECHAT_APP_SECRET="xxx" ./wechat-mcp -c config.toml
 **参数：**
 - `title` (必填): 文章标题
 - `content` (必填): 文章正文内容（支持 HTML）
-- `thumb_media_id` (必填): 封面图片 media_id
-- `author` (可选): 作者名称
-- `digest` (可选): 文章摘要
-- `content_source_url` (可选): 原文链接
+JJ|- `content_source_url` (可选): 原文链接
+- `need_open_comment` (可选): 是否开启评论，true开启，false关闭
+- `only_fans_can_comment` (可选): 是否仅粉丝可评论，true仅粉丝可评论，false所有人可评论
 
 **返回：**
 - MediaID

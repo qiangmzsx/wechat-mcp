@@ -134,14 +134,14 @@ func (s *Server) runSSE(mcpServer *server.MCPServer) error {
 // healthHandler 健康检查处理器
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	response := map[string]interface{}{
 		"status":    "healthy",
 		"timestamp": time.Now().Unix(),
 		"service":   "WeChat MCP Server",
 		"version":   "1.0.0",
 	}
-	
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		s.log.Warn("Failed to encode health response", zap.Error(err))
 	}
@@ -191,6 +191,12 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.WithString("thumb_media_id",
 				mcp.Required(),
 				mcp.Description("封面图片media_id"),
+			),
+			mcp.WithBoolean("need_open_comment",
+				mcp.Description("是否开启评论，true开启，false关闭"),
+			),
+			mcp.WithBoolean("only_fans_can_comment",
+				mcp.Description("是否仅粉丝可评论，true仅粉丝可评论，false所有人可评论"),
 			),
 		),
 		s.createDraftHandler,
@@ -350,20 +356,34 @@ func (s *Server) createDraftHandler(ctx context.Context, request mcp.CallToolReq
 	contentSourceURL, _ := args["content_source_url"].(string)
 	thumbMediaID, _ := args["thumb_media_id"].(string)
 
+	// 评论相关参数
+	var needOpenComment uint = 0
+	var onlyFansCanComment uint = 0
+	if needOpen, ok := args["need_open_comment"].(bool); ok && needOpen {
+		needOpenComment = 1
+	}
+	if onlyFans, ok := args["only_fans_can_comment"].(bool); ok && onlyFans {
+		onlyFansCanComment = 1
+	}
+
 	s.log.Debug("Tool arguments",
 		zap.String("tool", toolName),
 		zap.String("title", title),
 		zap.String("author", author),
 		zap.String("thumb_media_id", thumbMediaID),
+		zap.Uint("need_open_comment", needOpenComment),
+		zap.Uint("only_fans_can_comment", onlyFansCanComment),
 	)
 
 	article := &draft.Article{
-		Title:            title,
-		Content:          content,
-		Author:           author,
-		Digest:           digest,
-		ContentSourceURL: contentSourceURL,
-		ThumbMediaID:     thumbMediaID,
+		Title:              title,
+		Content:            content,
+		Author:             author,
+		Digest:             digest,
+		ContentSourceURL:   contentSourceURL,
+		ThumbMediaID:       thumbMediaID,
+		NeedOpenComment:    needOpenComment,
+		OnlyFansCanComment: onlyFansCanComment,
 	}
 
 	result, err := s.svc.CreateDraft([]*draft.Article{article})
