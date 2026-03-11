@@ -5,6 +5,8 @@ package converter
 import (
 	"fmt"
 	"regexp"
+
+	"github.com/qiangmzsx/wechat-mcp/config"
 )
 
 // ImageType 图片类型
@@ -37,9 +39,10 @@ type ConvertResult struct {
 
 // ConvertRequest 转换请求
 type ConvertRequest struct {
-	Markdown     string // Markdown 内容
-	Theme        string // 主题名称 (可选，默认使用配置的默认主题)
-	CustomPrompt string // 自定义提示词（可选）
+	Markdown      string               // Markdown 内容
+	Theme         string               // 主题名称 (可选，默认使用配置的默认主题)
+	CustomPrompt  string               // 自定义提示词（可选）
+	ConverterType config.ConverterType // 转换器类型: api, ai (可选)
 }
 
 // Converter 转换器接口 - 策略模式

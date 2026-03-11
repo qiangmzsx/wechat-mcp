@@ -19,8 +19,10 @@ port = 7990
 
 # AI 转换器配置 (Markdown -> 微信公众号 HTML)
 [converter]
-# 是否启用 AI 转换器
-enabled = true
+# 转换器类型: api (基于 goldmark，默认), ai (基于 LLM)
+type = "api"
+# 是否启用 AI 转换器 (当 type=ai 时必须为 true)
+enabled = false
 # Anthropic API Key (支持环境变量: ANTHROPIC_API_KEY)
 api_key = "your_anthropic_api_key"
 # 自定义 API 地址 (可选，用于代理或兼容 API)

@@ -43,9 +43,20 @@ type MCPConfig struct {
 	Port     int    `toml:"port"`
 }
 
+// ConverterType 转换器类型
+type ConverterType string
+
+const (
+	// ConverterTypeAPI 使用 API 转换器（基于 goldmark，默认）
+	ConverterTypeAPI ConverterType = "api"
+	// ConverterTypeAI 使用 AI 转换器（基于 LLM）
+	ConverterTypeAI ConverterType = "ai"
+)
+
 // ConverterConfig AI 转换器配置
 type ConverterConfig struct {
-	Enabled      bool          `toml:"enabled"`
+	Type         ConverterType `toml:"type"`     // 转换器类型: api, ai
+	Enabled      bool          `toml:"enabled"`  // 是否启用
 	Provider     string        `toml:"provider"` // 供应商: anthropic, openai
 	APIKey       string        `toml:"api_key"`
 	BaseURL      string        `toml:"base_url"`
@@ -76,6 +87,16 @@ func Load(path string) (*Config, error) {
 	}
 
 	// Converter 默认配置
+	// 设置默认转换器类型
+	if cfg.Converter.Type == "" {
+		cfg.Converter.Type = ConverterTypeAPI
+	}
+
+	// 如果使用 AI 转换器，自动启用
+	if cfg.Converter.Type == ConverterTypeAI {
+		cfg.Converter.Enabled = true
+	}
+
 	// 设置默认 Provider
 	if cfg.Converter.Provider == "" {
 		cfg.Converter.Provider = string(provider.ProviderAnthropic)

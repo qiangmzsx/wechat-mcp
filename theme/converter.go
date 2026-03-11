@@ -1,0 +1,173 @@
+package theme
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/yuin/goldmark"
+)
+
+type Converter struct {
+	theme       Theme
+	enableGrids bool
+	imageBase64 bool
+}
+
+type Option func(*Converter)
+
+func WithTheme(theme Theme) Option {
+	return func(c *Converter) {
+		c.theme = theme
+	}
+}
+
+func WithThemeID(themeID string) Option {
+	return func(c *Converter) {
+		c.theme = GetTheme(themeID)
+	}
+}
+
+func EnableImageGrids(enable bool) Option {
+	return func(c *Converter) {
+		c.enableGrids = enable
+	}
+}
+
+func ConvertImageToBase64(enable bool) Option {
+	return func(c *Converter) {
+		c.imageBase64 = enable
+	}
+}
+
+func NewConverter(opts ...Option) *Converter {
+	c := &Converter{
+		theme:       GetTheme("apple"),
+		enableGrids: true,
+		imageBase64: false,
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
+func PreprocessMarkdown(content string) string {
+	replacer := strings.NewReplacer(
+		"***", "",
+		"---", "",
+		"___", "",
+		"****", "",
+	)
+	return replacer.Replace(content)
+}
+
+func (c *Converter) Convert(markdown string) string {
+	markdown = PreprocessMarkdown(markdown)
+
+	md := goldmark.New()
+
+	var buf strings.Builder
+	if err := md.Convert([]byte(markdown), &buf); err != nil {
+		return ""
+	}
+
+	html := buf.String()
+
+	html = c.processSimpleStyles(html)
+
+	if c.enableGrids {
+		html = c.processImageGridsSimple(html)
+	}
+
+	html = c.processListStylesSimple(html)
+
+	return html
+}
+
+func (c *Converter) processSimpleStyles(html string) string {
+	style := c.theme.Styles
+
+	var result strings.Builder
+	result.WriteString("<div style=\"")
+	result.WriteString(style["container"])
+	result.WriteString("\">")
+	result.WriteString(html)
+	result.WriteString("</div>")
+
+	return result.String()
+}
+
+func (c *Converter) processImageGridsSimple(html string) string {
+	lines := strings.Split(html, "\n")
+	var result []string
+	var imageBuffer []string
+
+	flushImages := func() {
+		if len(imageBuffer) >= 2 {
+			result = append(result, `<p class="image-grid" style="display: flex; justify-content: center; gap: 8px; margin: 24px 0; align-items: flex-start;">`)
+			for _, img := range imageBuffer {
+				width := 100.0 / float64(len(imageBuffer))
+				spacing := 8.0 * float64(len(imageBuffer)-1) / float64(len(imageBuffer))
+				w := fmt.Sprintf("%.2f", width)
+				s := fmt.Sprintf("%.2f", spacing)
+				imgLine := strings.Replace(img, "<img ", "<img style=\"width: calc("+w+"% - "+s+"px); margin: 0; border-radius: 8px; height: auto;\" ", 1)
+				result = append(result, imgLine)
+			}
+			result = append(result, "</p>")
+		} else {
+			result = append(result, imageBuffer...)
+		}
+		imageBuffer = nil
+	}
+
+	inParagraph := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmed, "<p>") && strings.Contains(trimmed, "<img") {
+			if !inParagraph {
+				flushImages()
+				inParagraph = true
+			}
+			imageBuffer = append(imageBuffer, line)
+		} else if inParagraph && trimmed == "" {
+			continue
+		} else {
+			if inParagraph {
+				flushImages()
+				inParagraph = false
+			}
+			result = append(result, line)
+		}
+	}
+
+	if len(imageBuffer) > 0 {
+		flushImages()
+	}
+
+	return strings.Join(result, "\n")
+}
+
+func (c *Converter) processListStylesSimple(html string) string {
+	style := c.theme.Styles
+
+	html = strings.Replace(html, "<ul>", "<ul style=\""+style["ul"]+" list-style-type: disc !important;\">", 1)
+	html = strings.Replace(html, "<ol>", "<ol style=\""+style["ol"]+" list-style-type: decimal !important;\">", 1)
+
+	selectors := []string{"h1", "h2", "h3", "h4", "h5", "h6", "p", "strong", "em", "a", "li", "blockquote", "code", "pre", "hr", "img", "table", "th", "td", "tr"}
+
+	for _, sel := range selectors {
+		if s, ok := style[sel]; ok {
+			html = strings.Replace(html, "<"+sel+">", "<"+sel+" style=\""+s+"\">", 1)
+			html = strings.Replace(html, "<"+sel+" ", "<"+sel+" style=\""+s+"\" ", 1)
+		}
+	}
+
+	return html
+}
+
+func Convert(markdown string, themeID string) string {
+	c := NewConverter(WithThemeID(themeID))
+	return c.Convert(markdown)
+}

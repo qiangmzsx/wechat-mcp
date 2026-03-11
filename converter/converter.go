@@ -14,6 +14,22 @@ import (
 	"go.uber.org/zap"
 )
 
+func NewConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
+	convType := cfg.Converter.Type
+	if convType == "" {
+		convType = config.ConverterTypeAPI
+	}
+
+	switch convType {
+	case config.ConverterTypeAI:
+		return NewAIConverter(cfg, log)
+	case config.ConverterTypeAPI:
+		return NewAPIConverter(), nil
+	default:
+		log.Warn("unknown converter type, using API converter", zap.String("type", string(convType)))
+		return NewAPIConverter(), nil
+	}
+}
 
 // aiConverter AI 模式转换器
 type aiConverter struct {
@@ -23,7 +39,6 @@ type aiConverter struct {
 	theme  ThemeManager
 	prompt *PromptBuilder
 }
-
 
 // NewAIConverter 创建 AI 转换器
 func NewAIConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
@@ -37,16 +52,8 @@ func NewAIConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
 		return nil, fmt.Errorf("create provider failed: %w", err)
 	}
 
-
-	// 创建主题管理器并加载主题
-	themeMgr := NewThemeManager()
-	if cfg.Converter.ThemeDir != "" {
-		if err := themeMgr.LoadThemes(cfg.Converter.ThemeDir); err != nil {
-			log.Warn("failed to load themes from directory",
-				zap.String("dir", cfg.Converter.ThemeDir),
-				zap.Error(err))
-		}
-	}
+	// 使用统一主题管理器
+	themeMgr := NewUnifiedThemeManager()
 
 	return &aiConverter{
 		log:    log,
@@ -110,7 +117,6 @@ func (c *aiConverter) Convert(req *ConvertRequest) *ConvertResult {
 	}
 
 	html := resp.Content
-
 
 	// 处理图片占位符
 	html = c.processImagePlaceholders(html, images)

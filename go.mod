@@ -7,6 +7,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.26.0
 	github.com/mark3labs/mcp-go v0.44.1
 	github.com/silenceper/wechat/v2 v2.1.12
+	github.com/yuin/goldmark v1.2.1
 	go.uber.org/zap v1.27.0
 )
 

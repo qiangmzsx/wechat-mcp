@@ -19,34 +19,45 @@ import (
 
 // Server MCP服务器
 type Server struct {
-	svc       *wechat.Service
-	converter converter.Converter
-	config    *config.Config
-	log       *zap.Logger
+	svc         *wechat.Service
+	converter   converter.Converter
+	aiConverter converter.Converter
+	config      *config.Config
+	log         *zap.Logger
 }
 
 // New 创建MCP服务器
 func New(cfg *config.Config, logger *zap.Logger) *Server {
 	svc := wechat.NewService(cfg, logger)
 
-	// 初始化 converter
 	var conv converter.Converter
-	if cfg.Converter.Enabled {
-		var err error
-		conv, err = converter.NewAIConverter(cfg, logger)
-		if err != nil {
-			logger.Warn("converter initialization failed, using simple converter", zap.Error(err))
-			conv = converter.NewSimpleConverter()
-		}
-	} else {
+	var aiConv converter.Converter
+	var err error
+
+	// 创建默认转换器
+	conv, err = converter.NewConverter(cfg, logger)
+	if err != nil {
+		logger.Warn("converter initialization failed, using simple converter", zap.Error(err))
 		conv = converter.NewSimpleConverter()
 	}
 
+	// 创建 AI 转换器（如果启用）
+	if cfg.Converter.Enabled {
+		aiConv, err = converter.NewAIConverter(cfg, logger)
+		if err != nil {
+			logger.Warn("AI converter initialization failed", zap.Error(err))
+			aiConv = conv
+		}
+	} else {
+		aiConv = conv
+	}
+
 	return &Server{
-		svc:       svc,
-		converter: conv,
-		config:    cfg,
-		log:       logger,
+		svc:         svc,
+		converter:   conv,
+		aiConverter: aiConv,
+		config:      cfg,
+		log:         logger,
 	}
 }
 
@@ -256,10 +267,13 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 				mcp.Description("Markdown内容"),
 			),
 			mcp.WithString("theme",
-				mcp.Description("主题名称: default, elegant, tech, minimalist"),
+				mcp.Description("主题名称: default, elegant, tech, minimalist 等"),
 			),
 			mcp.WithString("custom_prompt",
 				mcp.Description("自定义提示词(可选)"),
+			),
+			mcp.WithString("converter_type",
+				mcp.Description("转换器类型: api (默认，基于goldmark), ai (基于LLM)"),
 			),
 		),
 		s.convertMarkdownHandler,
@@ -581,25 +595,38 @@ func (s *Server) convertMarkdownHandler(ctx context.Context, request mcp.CallToo
 		return mcp.NewToolResultError("markdown is required"), nil
 	}
 
-	// 获取可选参数
-	theme, _ := args["theme"].(string)
+	themeArg, _ := args["theme"].(string)
 	customPrompt, _ := args["custom_prompt"].(string)
+	converterTypeStr, _ := args["converter_type"].(string)
 
 	s.log.Debug("Tool arguments",
 		zap.String("tool", toolName),
-		zap.String("theme", theme),
+		zap.String("theme", themeArg),
 		zap.Bool("has_custom_prompt", customPrompt != ""),
+		zap.String("converter_type", converterTypeStr),
 		zap.Int("markdown_length", len(markdown)),
 	)
 
-	// 执行转换
 	req := &converter.ConvertRequest{
 		Markdown:     markdown,
-		Theme:        theme,
+		Theme:        themeArg,
 		CustomPrompt: customPrompt,
 	}
 
-	result := s.converter.Convert(req)
+	// 根据 converter_type 选择转换器
+	var result *converter.ConvertResult
+	convType := req.ConverterType
+	if convType == "" {
+		convType = s.config.Converter.Type
+	}
+
+	if convType == config.ConverterTypeAI {
+		s.log.Debug("Using AI converter", zap.String("tool", toolName))
+		result = s.aiConverter.Convert(req)
+	} else {
+		s.log.Debug("Using API converter", zap.String("tool", toolName))
+		result = s.converter.Convert(req)
+	}
 	duration := time.Since(startTime)
 
 	if !result.Success {
