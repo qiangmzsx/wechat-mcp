@@ -17,7 +17,7 @@ protocol = "http"
 host = "0.0.0.0"
 port = 7990
 
-# AI 转换器配置 (Markdown -> 微信公众号 HTML)
+# 转换器配置 (Markdown -> 微信公众号 HTML)
 [converter]
 # 转换器类型: api (基于 goldmark，默认), ai (基于 LLM)
 type = "api"

@@ -152,19 +152,68 @@ func (c *Converter) processImageGridsSimple(html string) string {
 func (c *Converter) processListStylesSimple(html string) string {
 	style := c.theme.Styles
 
-	html = strings.Replace(html, "<ul>", "<ul style=\""+style["ul"]+" list-style-type: disc !important;\">", 1)
-	html = strings.Replace(html, "<ol>", "<ol style=\""+style["ol"]+" list-style-type: decimal !important;\">", 1)
+	html = strings.Replace(html, "<ul>", "<ul style=\""+style["ul"]+" list-style-type: disc !important;\">", -1)
+	html = strings.Replace(html, "<ol>", "<ol style=\""+style["ol"]+" list-style-type: decimal !important;\">", -1)
 
 	selectors := []string{"h1", "h2", "h3", "h4", "h5", "h6", "p", "strong", "em", "a", "li", "blockquote", "code", "pre", "hr", "img", "table", "th", "td", "tr"}
 
 	for _, sel := range selectors {
 		if s, ok := style[sel]; ok {
-			html = strings.Replace(html, "<"+sel+">", "<"+sel+" style=\""+s+"\">", 1)
-			html = strings.Replace(html, "<"+sel+" ", "<"+sel+" style=\""+s+"\" ", 1)
+			html = addStyleToAllElements(html, sel, s)
 		}
 	}
 
 	return html
+}
+
+func addStyleToAllElements(html, tag, styleValue string) string {
+	searchOpen := "<" + tag + ">"
+	searchOpenWithStyle := "<" + tag + " style=\""
+
+	if !strings.Contains(html, searchOpenWithStyle) {
+		replaceOpen := "<" + tag + " style=\"" + styleValue + "\">"
+		html = strings.ReplaceAll(html, searchOpen, replaceOpen)
+	}
+
+	html = addStyleToOpenTags(html, tag, styleValue)
+
+	return html
+}
+
+func addStyleToOpenTags(html, tag, styleValue string) string {
+	tagWithSpace := "<" + tag + " "
+
+	var result strings.Builder
+	searchStart := 0
+	for {
+		idx := strings.Index(html[searchStart:], tagWithSpace)
+		if idx == -1 {
+			result.WriteString(html[searchStart:])
+			break
+		}
+		idx += searchStart
+
+		result.WriteString(html[searchStart:idx])
+
+		tagEnd := strings.Index(html[idx:], ">")
+		if tagEnd == -1 {
+			break
+		}
+		tagEnd += idx
+
+		tagContent := html[idx+len(tagWithSpace) : tagEnd]
+		if strings.Contains(tagContent, "style=\"") || strings.Contains(tagContent, " style=\"") {
+			result.WriteString(html[idx : tagEnd+1])
+			searchStart = tagEnd + 1
+			continue
+		}
+
+		result.WriteString("<" + tag + " style=\"" + styleValue + "\" " + tagContent + ">")
+
+		searchStart = tagEnd + 1
+	}
+
+	return result.String()
 }
 
 func Convert(markdown string, themeID string) string {

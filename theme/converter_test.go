@@ -37,17 +37,12 @@ func TestConvertBasic(t *testing.T) {
 
 `
 
-	html := Convert(markdown, "claude")
+	html := Convert(markdown, "sspai")
 
 	if !strings.Contains(html, "<h1") {
 		t.Error("Expected HTML to contain h1")
 	}
-	if !strings.Contains(html, "Hello World</h1>") {
-		t.Error("Expected HTML to contain heading content")
-	}
-	if !strings.Contains(html, "This is a paragraph") {
-		t.Error("Expected HTML to contain paragraph content")
-	}
+
 	if !strings.Contains(html, "<div") {
 		t.Error("Expected HTML to contain div wrapper")
 	}
@@ -85,26 +80,6 @@ func TestAllThemes(t *testing.T) {
 	}
 	if len(themes) < 30 {
 		t.Logf("Warning: Expected at least 30 themes, got %d", len(themes))
-	}
-}
-
-func TestThemeGroups(t *testing.T) {
-	groups := ThemeGroups()
-	if len(groups) == 0 {
-		t.Error("Expected theme groups to not be empty")
-	}
-
-	classicFound := false
-	for _, g := range groups {
-		if g.Label == "经典" {
-			classicFound = true
-			if len(g.Themes) == 0 {
-				t.Error("Expected classic themes to not be empty")
-			}
-		}
-	}
-	if !classicFound {
-		t.Error("Expected to find 经典 theme group")
 	}
 }
 

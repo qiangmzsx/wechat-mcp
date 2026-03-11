@@ -24,14 +24,6 @@ func GetThemeByName(name string) *Theme {
 	return nil
 }
 
-func ThemeCount() int {
-	return len(AllThemes())
-}
-
 func ListThemeIDs() []string {
 	return ThemeIDs()
-}
-
-func ListThemesByGroup() []ThemeGroup {
-	return ThemeGroups()
 }

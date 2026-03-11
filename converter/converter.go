@@ -53,7 +53,7 @@ func NewAIConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
 	}
 
 	// 使用统一主题管理器
-	themeMgr := NewUnifiedThemeManager()
+	themeMgr := NewThemeManager()
 
 	return &aiConverter{
 		log:    log,
@@ -168,25 +168,16 @@ func (c *aiConverter) buildPrompt(req *ConvertRequest) (string, error) {
 	style, err := c.theme.GetStyle(req.Theme)
 	if err != nil {
 		c.log.Warn("failed to get theme style, using defaults", zap.String("theme", req.Theme), zap.Error(err))
-		style = &StyleConfig{
-			PrimaryColor:    "#333333",
-			SecondaryColor:  "#666666",
-			BackgroundColor: "#ffffff",
-			TextColor:       "#333333",
-			AccentColor:     "#4a90d9",
+		style = map[string]string{
+			"primary_color":    "#333333",
+			"secondary_color":  "#666666",
+			"background_color": "#ffffff",
+			"text_color":       "#333333",
+			"accent_color":     "#4a90d9",
 		}
 	}
 
-	// 构建颜色变量
-	vars := map[string]string{
-		"PRIMARY_COLOR":    style.PrimaryColor,
-		"SECONDARY_COLOR":  style.SecondaryColor,
-		"BACKGROUND_COLOR": style.BackgroundColor,
-		"TEXT_COLOR":       style.TextColor,
-		"ACCENT_COLOR":     style.AccentColor,
-	}
-
-	return c.prompt.BuildPrompt(themePrompt, req.Markdown, vars), nil
+	return c.prompt.BuildPrompt(themePrompt, req.Markdown, style), nil
 }
 
 // getSystemPrompt 获取系统提示词

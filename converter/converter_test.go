@@ -278,7 +278,7 @@ var cfg = &config.Config{
 		APIKey:       os.Getenv("ANTHROPIC_API_KEY"),
 		BaseURL:      "https://api.minimaxi.com/anthropic",
 		Model:        "MiniMax-M2.5",
-		DefaultTheme: "default",
+		DefaultTheme: "nord",
 	},
 }
 
@@ -322,7 +322,7 @@ func TestAIConverter_Convert(t *testing.T) {
 3. **极客与商务**：Stripe 硅谷风、飞书效率蓝、Linear 暗夜模式、Bloomberg 终端机
 
 `,
-		Theme: "elegant",
+		Theme: "sspai",
 	}
 	result := conv.Convert(req)
 	if !result.Success {

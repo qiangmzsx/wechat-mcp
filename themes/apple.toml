@@ -1,6 +1,6 @@
-id = "default"
-name = "默认"
-description = "默认主题 - 简洁大方的通用风格，适合大多数公众号文章"
+id = "apple"
+name = "Mac"
+description = "纯净现代的极致留白，适合日常记录的万能首选"
 
 [styles]
 container = "max-width: 100%; margin: 0 auto; padding: 24px 20px 48px 20px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; font-size: 16px; line-height: 1.7 !important; color: #1d1d1f !important; background-color: #ffffff !important; word-wrap: break-word;"

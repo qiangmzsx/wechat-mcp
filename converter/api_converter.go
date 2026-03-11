@@ -10,7 +10,7 @@ type apiConverter struct {
 
 func NewAPIConverter() Converter {
 	return &apiConverter{
-		themeMgr: NewUnifiedThemeManager(),
+		themeMgr: NewThemeManager(),
 	}
 }
 

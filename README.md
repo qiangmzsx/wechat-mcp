@@ -145,7 +145,7 @@ WECHAT_APP_ID="xxx" WECHAT_APP_SECRET="xxx" ./wechat-mcp -c config.toml
 **参数：**
 - `title` (必填): 文章标题
 - `content` (必填): 文章正文内容（支持 HTML）
-JJ|- `content_source_url` (可选): 原文链接
+- `content_source_url` (可选): 原文链接
 - `need_open_comment` (可选): 是否开启评论，true开启，false关闭
 - `only_fans_can_comment` (可选): 是否仅粉丝可评论，true仅粉丝可评论，false所有人可评论
 
@@ -198,7 +198,7 @@ JJ|- `content_source_url` (可选): 原文链接
 
 **参数：**
 - `markdown` (必填): Markdown 内容
-- `theme` (可选): 主题名称 (default, elegant, tech, minimalist)
+- `theme` (可选): 主题名称 (default, apple, elegant, tech, minimalist, wechat, medium, notion, github, dracula, nord, ocean, solarized, retro, bloomberg, sspai, cyberpunk, linear, stripe, workspace, media, sakura, mint, lavender, forest, glacier, coffee, bauhaus, copper, pastel)
 - `custom_prompt` (可选): 自定义提示词
 
 **返回：**
@@ -218,16 +218,42 @@ JJ|- `content_source_url` (可选): 原文链接
 
 ## 主题说明
 
-本项目内置了 4 个主题，可通过 `convert_markdown` 工具的 `theme` 参数指定。
+本项目内置了 29 个主题，可通过 `convert_markdown` 工具的 `theme` 参数指定。
 
 ### 可用主题
 
 | 主题 | 说明 | 适用场景 |
 |------|------|----------|
 | `default` | 简洁大方的通用风格 | 通用场景，技术文章，生活分享 |
+| `apple` | 纯净现代的极致留白 | 日常记录，文艺分享 |
 | `elegant` | 精致柔和的排版风格 | 情感文章，文艺分享，生活随笔 |
 | `tech` | 简洁专业的技术风格 | 技术文章，编程教程，代码分享 |
 | `minimalist` | 简约清爽的阅读体验 | 深度阅读，思考类文章，简洁主义 |
+| `wechat` | 微信公众号原生风格 | 公众号文章，朋友圈 |
+| `medium` | Medium 博客风格 | 博客，深度文章 |
+| `notion` | Notion 笔记风格 | 知识管理，个人笔记 |
+| `github` | GitHub README 风格 | 技术文档，开源项目 |
+| `dracula` | Dracula 暗色主题 | 暗色模式，代码展示 |
+| `nord` | 北欧极简风格 | 极简主义，暗色模式 |
+| `ocean` | 深海蓝调风格 | 科技文章，专业风格 |
+| `solarized` | Solarized 护眼风格 | 长时间阅读，护眼 |
+| `retro` | 复古羊皮纸风格 | 怀旧，复古主题 |
+| `bloomberg` | Bloomberg 终端风格 | 金融数据，商业报告 |
+| `sspai` | 少数派风格 | 科技数码，效率工具 |
+| `cyberpunk` | 赛博朋克风格 | 科幻主题，潮流 |
+| `linear` | Linear 产品风格 | 产品介绍，暗色模式 |
+| `stripe` | Stripe 支付风格 | 商业文档，支付页面 |
+| `workspace` | Workspace 工作区风格 | 团队文档，协作 |
+| `media` | 媒体资讯风格 | 新闻，资讯 |
+| `sakura` | 樱花浪漫风格 | 文艺，情感，日系 |
+| `mint` | 薄荷清新风格 | 清新，生活方式 |
+| `lavender` | 薰衣草紫风格 | 梦幻，文艺 |
+| `forest` | 森林自然风格 | 自然，环保 |
+| `glacier` | 冰川蓝风格 | 冰冷，高冷 |
+| `coffee` | 咖啡暖调风格 | 温暖，舒适 |
+| `bauhaus` | 包豪斯风格 | 现代艺术，设计 |
+| `copper` | 铜色调风格 | 复古，优雅 |
+| `pastel` | 粉彩柔和风格 | 少女心，可爱 |
 
 ### 主题详细说明
 
@@ -238,40 +264,60 @@ JJ|- `content_source_url` (可选): 原文链接
 - **配色**: 蓝灰色调，专业简洁
 - **字号**: 中等（16px）
 - **行高**: 1.75
-- **标签**: default, simple, general
 
-#### elegant (优雅主题)
+#### 风格分类
 
-精致柔和的排版风格，给人温暖舒适的阅读体验。
+**简洁现代**:
+- `apple` - Mac 纯净白，极致留白
+- `minimalist` - 极简主义，大量留白
+- `wechat` - 微信公众号原生风格
 
-- **配色**: 柔和暖色调
-- **字号**: 中等
-- **行高**: 1.8
-- **标签**: elegant, soft, literary
+**暗色主题**:
+- `dracula` - 经典暗色主题
+- `nord` - 北欧极简暗色
+- `linear` - Linear 产品暗色
+- `cyberpunk` - 赛博朋克风格
 
-#### tech (技术主题)
+**温暖柔和**:
+- `elegant` - 精致柔和
+- `sakura` - 樱花浪漫
+- `mint` - 薄荷清新
+- `lavender` - 薰衣草紫
+- `coffee` - 咖啡暖调
+- `pastel` - 粉彩柔和
 
-简洁专业的技术风格，适合程序员阅读。
+**商务专业**:
+- `tech` - 技术风格
+- `bloomberg` - Bloomberg 终端
+- `stripe` - Stripe 支付风格
+- `workspace` - 工作区风格
 
-- **配色**: 深色系，高对比度
-- **代码块**: Monokai 风格深色背景
-- **行高**: 1.7
-- **标签**: tech, code, developer
+**自然风格**:
+- `ocean` - 深海蓝调
+- `solarized` - 护眼风格
+- `forest` - 森林自然
+- `glacier` - 冰川蓝
 
-#### minimalist (极简主题)
+**文艺复古**:
+- `retro` - 复古羊皮纸
+- `bauhaus` - 包豪斯艺术
+- `copper` - 铜色调
 
-简约清爽的阅读体验，去除一切不必要的装饰。
-
-- **配色**: 黑白灰，纯粹阅读
-- **特点**: 大量留白，专注于内容
-- **行高**: 1.8
-- **标签**: minimalist, simple, clean
+**博客资讯**:
+- `medium` - Medium 博客
+- `notion` - Notion 笔记
+- `github` - GitHub 风格
+- `sspai` - 少数派
+- `media` - 媒体资讯
 
 ### 使用示例
 
 ```bash
 # 使用默认主题转换
 convert_markdown(markdown="# Hello", theme="default")
+
+# 使用 Mac 纯净白主题
+convert_markdown(markdown="# Hello", theme="apple")
 
 # 使用技术主题转换
 convert_markdown(markdown="# 代码示例", theme="tech")
@@ -281,6 +327,21 @@ convert_markdown(markdown="# 随笔", theme="elegant")
 
 # 使用极简主题转换
 convert_markdown(markdown="# 深度思考", theme="minimalist")
+
+# 使用暗色主题 (dracula)
+convert_markdown(markdown="# 暗黑风格", theme="dracula")
+
+# 使用赛博朋克主题
+convert_markdown(markdown="# 赛博风格", theme="cyberpunk")
+
+# 使用复古主题
+convert_markdown(markdown="# 复古风", theme="retro")
+
+# 使用樱花主题
+convert_markdown(markdown="# 樱花季", theme="sakura")
+
+# 列出所有可用主题
+list_themes()
 ```
 
 ### 自定义主题
