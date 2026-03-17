@@ -255,6 +255,8 @@ WECHAT_APP_ID="xxx" WECHAT_APP_SECRET="xxx" ./wechat-mcp -c config.toml
 | `copper` | 铜色调风格 | 复古，优雅 |
 | `pastel` | 粉彩柔和风格 | 少女心，可爱 |
 
+感谢`https://github.com/liuxiaopai-ai/raphael-publish`提供了很多漂亮的主题。
+
 ### 主题详细说明
 
 #### default (默认主题)

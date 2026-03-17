@@ -81,6 +81,10 @@ func (c *Converter) Convert(markdown string) string {
 
 	html = c.processListStylesSimple(html)
 
+	// 移除多余的换行符，防止微信公众号显示 \n 排版错误
+	// 保留 <pre> 标签内的换行符（代码块）
+	html = c.removeExtraNewlines(html)
+
 	return html
 }
 
@@ -214,6 +218,41 @@ func addStyleToOpenTags(html, tag, styleValue string) string {
 	}
 
 	return result.String()
+}
+
+func (c *Converter) removeExtraNewlines(html string) string {
+	preTag := "<pre"
+	preEndTag := "</pre>"
+
+	var result strings.Builder
+	pos := 0
+
+	for {
+		preStart := strings.Index(html[pos:], preTag)
+		if preStart == -1 {
+			result.WriteString(c.stripNewlines(html[pos:]))
+			break
+		}
+		preStart += pos
+
+		result.WriteString(c.stripNewlines(html[pos:preStart]))
+
+		preEnd := strings.Index(html[preStart:], preEndTag)
+		if preEnd == -1 {
+			result.WriteString(html[preStart:])
+			break
+		}
+		preEnd += preStart + len(preEndTag)
+
+		result.WriteString(html[preStart:preEnd])
+		pos = preEnd
+	}
+
+	return result.String()
+}
+
+func (c *Converter) stripNewlines(s string) string {
+	return strings.ReplaceAll(s, "\n", "")
 }
 
 func Convert(markdown string, themeID string) string {
