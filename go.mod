@@ -1,6 +1,6 @@
 module github.com/qiangmzsx/wechat-mcp
 
-go 1.23.0
+go 1.25.0
 
 require (
 	github.com/BurntSushi/toml v1.4.0
@@ -31,9 +31,11 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/crypto v0.49.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

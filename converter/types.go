@@ -3,10 +3,19 @@
 package converter
 
 import (
+	"encoding/base64"
 	"fmt"
+	stdhtml "html"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/yosssi/gohtml"
+	"go.uber.org/zap"
 )
 
 // ImageType 图片类型
@@ -179,4 +188,118 @@ func replacePlaceholder(html, placeholder, replacement string) string {
 // GeneratePlaceholder 生成图片占位符
 func GeneratePlaceholder(index int) string {
 	return "<!-- IMG:" + string(rune('0'+index)) + " -->"
+}
+
+// ImageToBase64 将图片转换为 base64 编码
+// 支持本地文件路径和 HTTP URL
+func ImageToBase64(imagePath string) (string, error) {
+	// 判断是否为 HTTP URL
+	if strings.HasPrefix(imagePath, "http://") || strings.HasPrefix(imagePath, "https://") {
+		return imageToBase64FromURL(imagePath)
+	}
+	// 本地文件路径
+	return imageToBase64FromFile(imagePath)
+}
+
+// imageToBase64FromURL 从 URL 下载图片并转换为 base64
+func imageToBase64FromURL(url string) (string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed to download image from URL: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to download image, status: %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read image data: %w", err)
+	}
+
+	// 检测图片类型
+	contentType := http.DetectContentType(data)
+	if contentType == "" {
+		contentType = "image/jpeg" // 默认类型
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(data)
+	return "data:" + contentType + ";base64," + encoded, nil
+}
+
+// imageToBase64FromFile 从本地文件读取图片并转换为 base64
+func imageToBase64FromFile(filePath string) (string, error) {
+	// 尝试读取绝对路径或相对路径
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read image file: %w", err)
+	}
+
+	// 检测图片类型
+	contentType := http.DetectContentType(data)
+	if contentType == "" {
+		// 尝试通过文件扩展名判断
+		ext := strings.ToLower(filepath.Ext(filePath))
+		switch ext {
+		case ".png":
+			contentType = "image/png"
+		case ".gif":
+			contentType = "image/gif"
+		case ".webp":
+			contentType = "image/webp"
+		case ".svg":
+			contentType = "image/svg+xml"
+		default:
+			contentType = "image/jpeg"
+		}
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(data)
+	return "data:" + contentType + ";base64," + encoded, nil
+}
+
+// ReplaceImagesWithBase64 替换 HTML 中的图片为 base64 编码
+func ReplaceImagesWithBase64(htmlContent string, images []ImageRef) string {
+	return ReplaceImagesWithBase64WithLogger(htmlContent, images, nil)
+}
+
+func ReplaceImagesWithBase64WithLogger(htmlContent string, images []ImageRef, log *zap.Logger) string {
+	result := htmlContent
+	for _, img := range images {
+		if img.Original == "" {
+			continue
+		}
+
+		if img.Type == ImageTypeAI {
+			continue
+		}
+
+		base64Data, err := ImageToBase64(img.Original)
+		if err != nil {
+			if log != nil {
+				log.Warn("failed to convert image to base64, keeping original URL",
+					zap.String("url", img.Original),
+					zap.Error(err))
+			}
+			continue
+		}
+
+		original := img.Original
+		escapedOriginal := stdhtml.EscapeString(original)
+
+		if !strings.HasPrefix(original, "http://") && !strings.HasPrefix(original, "https://") {
+			result = strings.ReplaceAll(result, `src="`+original+`"`, `src="`+base64Data+`"`)
+			result = strings.ReplaceAll(result, "src=\""+original+"\"", "src=\""+base64Data+"\"")
+			result = strings.ReplaceAll(result, "src="+original, "src="+base64Data)
+		} else {
+			result = strings.ReplaceAll(result, `src="`+original+`"`, `src="`+base64Data+`"`)
+			result = strings.ReplaceAll(result, `src="`+escapedOriginal+`"`, `src="`+base64Data+`"`)
+		}
+	}
+	return result
+}
+
+func FormatHTML(htmlContent string) string {
+	return gohtml.Format(htmlContent)
 }

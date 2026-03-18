@@ -24,10 +24,10 @@ func NewConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
 	case config.ConverterTypeAI:
 		return NewAIConverter(cfg, log)
 	case config.ConverterTypeAPI:
-		return NewAPIConverter(), nil
+		return NewAPIConverter(log), nil
 	default:
 		log.Warn("unknown converter type, using API converter", zap.String("type", string(convType)))
-		return NewAPIConverter(), nil
+		return NewAPIConverter(log), nil
 	}
 }
 
@@ -118,10 +118,9 @@ func (c *aiConverter) Convert(req *ConvertRequest) *ConvertResult {
 
 	html := resp.Content
 
-	// 处理图片占位符
 	html = c.processImagePlaceholders(html, images)
 
-	result.HTML = html
+	result.HTML = FormatHTML(html)
 	result.Success = true
 
 	c.log.Info("AI conversion succeeded",
@@ -219,29 +218,27 @@ func (c *aiConverter) extractHTML(content string) string {
 }
 
 // processImagePlaceholders 处理图片占位符
-// 优先级: WechatURL > Original
-func (c *aiConverter) processImagePlaceholders(html string, images []ImageRef) string {
-	result := html
+func (c *aiConverter) processImagePlaceholders(htmlContent string, images []ImageRef) string {
+	result := htmlContent
 	for _, img := range images {
 		placeholder := fmt.Sprintf("<!-- IMG:%d -->", img.Index)
 		if !strings.Contains(result, placeholder) {
-			// 尝试其他格式
 			placeholder = fmt.Sprintf("<!--IMG:%d-->", img.Index)
 		}
 
-		// 确定使用的图片 URL
 		imgURL := img.WechatURL
 		if imgURL == "" {
-			// 如果没有微信 URL，使用原始路径
 			imgURL = img.Original
 		}
 
-		// 替换占位符为实际图片标签
 		if imgURL != "" {
 			imgTag := "<img src=\"" + imgURL + "\" style=\"max-width:100%;height:auto;display:block;margin:20px auto;\" />"
 			result = strings.ReplaceAll(result, placeholder, imgTag)
 		}
 	}
+
+	result = ReplaceImagesWithBase64WithLogger(result, images, c.log)
+
 	return result
 }
 

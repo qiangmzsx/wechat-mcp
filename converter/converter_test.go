@@ -2,6 +2,7 @@ package converter
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -465,7 +466,6 @@ func TestAIConverter_ExtractHTML(t *testing.T) {
 func TestAIConverter_ProcessImagePlaceholders(t *testing.T) {
 	logger := zap.NewNop()
 
-	// 直接创建 aiConverter 实例
 	themeMgr := NewThemeManager()
 	conv := &aiConverter{
 		log:    logger,
@@ -474,7 +474,6 @@ func TestAIConverter_ProcessImagePlaceholders(t *testing.T) {
 		prompt: NewPromptBuilder(),
 	}
 
-	// 测试图片占位符处理
 	html := `<section>
 <p>Image 1:</p>
 <!-- IMG:0 -->
@@ -491,7 +490,45 @@ func TestAIConverter_ProcessImagePlaceholders(t *testing.T) {
 	if result == "" {
 		t.Error("processImagePlaceholders returned empty")
 	}
+
+	if !strings.Contains(result, "<img") {
+		t.Error("result should contain img tag")
+	}
+
 	t.Log(result)
+}
+
+func TestAIConverter_ProcessImagePlaceholders_WithRealImage(t *testing.T) {
+	logger := zap.NewNop()
+
+	themeMgr := NewThemeManager()
+	conv := &aiConverter{
+		log:    logger,
+		config: cfg.Converter,
+		theme:  themeMgr,
+		prompt: NewPromptBuilder(),
+	}
+
+	html := `<section><p>Image:</p><!-- IMG:0 --></section>`
+
+	images := []ImageRef{
+		{Index: 0, Original: "https://picsum.photos/200/300", Type: ImageTypeOnline},
+	}
+
+	result := conv.processImagePlaceholders(html, images)
+	if result == "" {
+		t.Error("processImagePlaceholders returned empty")
+	}
+
+	if !strings.Contains(result, "data:image") {
+		t.Error("result should contain base64 image data")
+	}
+
+	if strings.Contains(result, "picsum.photos") {
+		t.Error("result should not contain original URL")
+	}
+
+	t.Logf("Result length: %d", len(result))
 }
 
 func TestAIConverter_Convert_WithRealAPI(t *testing.T) {
@@ -540,4 +577,27 @@ func TestAIConverter_Convert_WithRealAPI(t *testing.T) {
 
 	t.Logf("HTML length: %d", len(result.HTML))
 	t.Logf("Theme used: %s", result.Theme)
+}
+
+func TestReplaceImagesWithBase64_EscapedURL(t *testing.T) {
+	htmlContent := `<img src="https://picsum.photos/200/300?w=600&amp;h=400&amp;fit=crop" alt="test" />`
+	images := []ImageRef{
+		{
+			Original: "https://picsum.photos/200/300?w=600&h=400&fit=crop",
+			Type:     ImageTypeOnline,
+		},
+	}
+
+	result := ReplaceImagesWithBase64(htmlContent, images)
+
+	t.Logf("Original HTML: %s", htmlContent)
+	t.Logf("Result HTML length: %d", len(result))
+
+	if strings.Contains(result, "https://picsum.photos") {
+		t.Error("URL should be replaced with base64, but still contains original URL")
+	}
+
+	if !strings.Contains(result, "data:image") {
+		t.Error("Result should contain base64 data URI")
+	}
 }
