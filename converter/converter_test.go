@@ -412,12 +412,9 @@ func TestAIConverter_GetSystemPrompt(t *testing.T) {
 }
 
 func TestAIConverter_ExtractHTML(t *testing.T) {
-	logger := zap.NewNop()
-
 	// 直接创建 aiConverter 实例
 	themeMgr := NewThemeManager()
 	conv := &aiConverter{
-		log:    logger,
 		config: cfg.Converter,
 		theme:  themeMgr,
 		prompt: NewPromptBuilder(),
@@ -464,11 +461,8 @@ func TestAIConverter_ExtractHTML(t *testing.T) {
 }
 
 func TestAIConverter_ProcessImagePlaceholders(t *testing.T) {
-	logger := zap.NewNop()
-
 	themeMgr := NewThemeManager()
 	conv := &aiConverter{
-		log:    logger,
 		config: cfg.Converter,
 		theme:  themeMgr,
 		prompt: NewPromptBuilder(),
@@ -499,11 +493,8 @@ func TestAIConverter_ProcessImagePlaceholders(t *testing.T) {
 }
 
 func TestAIConverter_ProcessImagePlaceholders_WithRealImage(t *testing.T) {
-	logger := zap.NewNop()
-
 	themeMgr := NewThemeManager()
 	conv := &aiConverter{
-		log:    logger,
 		config: cfg.Converter,
 		theme:  themeMgr,
 		prompt: NewPromptBuilder(),

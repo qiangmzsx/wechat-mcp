@@ -3,12 +3,13 @@ module github.com/qiangmzsx/wechat-mcp
 go 1.25.0
 
 require (
-	github.com/BurntSushi/toml v1.4.0
-	github.com/anthropics/anthropic-sdk-go v1.26.0
-	github.com/mark3labs/mcp-go v0.44.1
+	github.com/BurntSushi/toml v1.6.0
+	github.com/anthropics/anthropic-sdk-go v1.27.0
+	github.com/mark3labs/mcp-go v0.45.0
 	github.com/silenceper/wechat/v2 v2.1.12
-	github.com/yuin/goldmark v1.2.1
-	go.uber.org/zap v1.27.0
+	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4
+	github.com/yuin/goldmark v1.7.16
+	go.uber.org/zap v1.27.1
 )
 
 require (
@@ -31,7 +32,6 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
@@ -39,3 +39,5 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/anthropics/anthropic-sdk-go => /Users/ouerqiang/go/pkg/mod/github.com/anthropics/anthropic-sdk-go@v1.27.0

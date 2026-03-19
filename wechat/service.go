@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/silenceper/wechat/v2"
 	wechatcache "github.com/silenceper/wechat/v2/cache"
 	"github.com/silenceper/wechat/v2/officialaccount"
@@ -25,16 +26,15 @@ import (
 // Service 微信服务
 type Service struct {
 	cfg *config.Config
-	log *zap.Logger
 	wc  *wechat.Wechat
 }
 
 // NewService 创建微信服务
-func NewService(cfg *config.Config, log *zap.Logger) *Service {
+func NewService(cfg *config.Config) *Service {
 	return &Service{
 		cfg: cfg,
-		log: log,
-		wc:  wechat.NewWechat(),
+
+		wc: wechat.NewWechat(),
 	}
 }
 
@@ -71,14 +71,14 @@ func (s *Service) UploadMaterial(filePath string) (*UploadMaterialResult, error)
 
 	mediaID, url, err := mat.AddMaterial(material.MediaTypeImage, localPath)
 	if err != nil {
-		s.log.Error("upload material failed",
+		logger.Error("upload material failed",
 			zap.String("path", filePath),
 			zap.Error(err))
 		return nil, fmt.Errorf("upload material: %w", err)
 	}
 
 	duration := time.Since(startTime)
-	s.log.Info("material uploaded",
+	logger.Info("material uploaded",
 		zap.String("path", filePath),
 		zap.String("media_id", maskMediaID(mediaID)),
 		zap.Duration("duration", duration))
@@ -102,16 +102,16 @@ func (s *Service) CreateDraft(articles []*draft.Article) (*CreateDraftResult, er
 	dm := oa.GetDraft()
 	jsonData, err := json.Marshal(articles)
 
-	s.log.Info("CreateDraft params", zap.String("articles", string(jsonData)))
+	logger.Info("CreateDraft params", zap.String("articles", string(jsonData)))
 
 	mediaID, err := dm.AddDraft(articles)
 	if err != nil {
-		s.log.Error("create draft failed", zap.Error(err))
+		logger.Error("create draft failed", zap.Error(err))
 		return nil, fmt.Errorf("create draft: %w", err)
 	}
 
 	duration := time.Since(startTime)
-	s.log.Info("draft created",
+	logger.Info("draft created",
 		zap.String("media_id", maskMediaID(mediaID)),
 		zap.Duration("duration", duration))
 
@@ -295,14 +295,14 @@ func (s *Service) CreateNewspicDraft(articles []NewspicArticle) (*CreateDraftRes
 	}
 
 	if resp.ErrCode != 0 {
-		s.log.Error("create newspic draft failed",
+		logger.Error("create newspic draft failed",
 			zap.Int("errcode", resp.ErrCode),
 			zap.String("errmsg", resp.ErrMsg))
 		return nil, fmt.Errorf("wechat api error: %d - %s", resp.ErrCode, resp.ErrMsg)
 	}
 
 	duration := time.Since(startTime)
-	s.log.Info("newspic draft created",
+	logger.Info("newspic draft created",
 		zap.String("media_id", maskMediaID(resp.MediaID)),
 		zap.Duration("duration", duration))
 

@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/yosssi/gohtml"
 	"go.uber.org/zap"
 )
@@ -264,7 +265,7 @@ func ReplaceImagesWithBase64(htmlContent string, images []ImageRef) string {
 	return ReplaceImagesWithBase64WithLogger(htmlContent, images, nil)
 }
 
-func ReplaceImagesWithBase64WithLogger(htmlContent string, images []ImageRef, log *zap.Logger) string {
+func ReplaceImagesWithBase64WithLogger(htmlContent string, images []ImageRef, _ *zap.Logger) string {
 	result := htmlContent
 	for _, img := range images {
 		if img.Original == "" {
@@ -277,11 +278,9 @@ func ReplaceImagesWithBase64WithLogger(htmlContent string, images []ImageRef, lo
 
 		base64Data, err := ImageToBase64(img.Original)
 		if err != nil {
-			if log != nil {
-				log.Warn("failed to convert image to base64, keeping original URL",
-					zap.String("url", img.Original),
-					zap.Error(err))
-			}
+			logger.Warn("failed to convert image to base64, keeping original URL",
+				zap.String("url", img.Original),
+				zap.Error(err))
 			continue
 		}
 

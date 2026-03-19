@@ -2,17 +2,14 @@ package converter
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/BurntSushi/toml"
+	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/qiangmzsx/wechat-mcp/theme"
+	"go.uber.org/zap"
 )
 
 type themeManager struct {
-	themes   map[string]*Theme
-	themeDir string
+	themes map[string]*Theme
 }
 
 func NewThemeManager() ThemeManager {
@@ -22,95 +19,32 @@ func NewThemeManager() ThemeManager {
 }
 
 func (tm *themeManager) LoadThemes(dir string) error {
-	if dir == "" {
-		dir = tm.getDefaultThemeDir()
-	}
-
-	tm.themeDir = dir
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return nil
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return fmt.Errorf("read theme directory: %w", err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		if !strings.HasSuffix(entry.Name(), ".toml") {
-			continue
-		}
-
-		themePath := filepath.Join(dir, entry.Name())
-		if err := tm.loadThemeFromFile(themePath); err != nil {
-			return fmt.Errorf("load theme from %s: %w", themePath, err)
-		}
-	}
-
+	logger.Info("theme loading delegated to theme package")
+	themeIDs := theme.ThemeIDs()
+	logger.Info("themes available", zap.Int("count", len(themeIDs)), zap.Strings("ids", themeIDs))
 	return nil
-}
-
-func (tm *themeManager) loadThemeFromFile(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read file: %w", err)
-	}
-
-	var themeObj Theme
-	if err := toml.Unmarshal(data, &themeObj); err != nil {
-		return fmt.Errorf("parse toml: %w", err)
-	}
-
-	if themeObj.Name == "" {
-		return fmt.Errorf("theme name is required")
-	}
-
-	if themeObj.Type == "" {
-		themeObj.Type = "ai"
-	}
-
-	if themeObj.Prompt == "" {
-		themeObj.Prompt = getBuiltinPrompt(themeObj.Name)
-	}
-
-	tm.themes[themeObj.Name] = &themeObj
-	return nil
-}
-
-func (tm *themeManager) getDefaultThemeDir() string {
-	if _, err := os.Stat("themes"); err == nil {
-		return "themes"
-	}
-
-	homeDir, _ := os.UserHomeDir()
-	userThemeDir := filepath.Join(homeDir, ".config", "wechat-mcp", "themes")
-	if _, err := os.Stat(userThemeDir); err == nil {
-		return userThemeDir
-	}
-
-	return "themes"
 }
 
 func (tm *themeManager) GetTheme(name string) (*Theme, error) {
-	if theme, ok := tm.themes[name]; ok {
-		return theme, nil
+	if cached, ok := tm.themes[name]; ok {
+		logger.Debug("theme found in converter cache", zap.String("name", name))
+		return cached, nil
 	}
 
+	logger.Debug("resolving theme", zap.String("name", name))
 	t := theme.GetThemeByName(name)
-	if t == nil {
-		if name != "default" && name != "elegant" && name != "tech" && name != "minimalist" {
+	if t.ID == "" && t.Name == "" {
+		if !isKnownFallbackTheme(name) {
+			logger.Warn("theme not found", zap.String("name", name))
 			return nil, fmt.Errorf("theme not found: %s", name)
 		}
 		t = theme.GetThemeByName("apple")
-		if t == nil {
+		if t.ID == "" && t.Name == "" {
+			logger.Error("fallback theme 'apple' not found")
 			return nil, fmt.Errorf("theme not found: %s", name)
 		}
 		name = "apple"
+		logger.Info("using fallback theme 'apple'", zap.String("original_name", name))
 	}
 
 	converterTheme := &Theme{
@@ -122,11 +56,22 @@ func (tm *themeManager) GetTheme(name string) (*Theme, error) {
 	}
 
 	tm.themes[name] = converterTheme
+	logger.Info("theme resolved", zap.String("name", name), zap.String("type", converterTheme.Type))
 	return converterTheme, nil
 }
 
+func isKnownFallbackTheme(name string) bool {
+	fallbacks := []string{"default", "elegant", "tech", "minimalist", "apple"}
+	for _, f := range fallbacks {
+		if f == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (tm *themeManager) ListThemes() []string {
-	ids := theme.ListThemeIDs()
+	ids := theme.ThemeIDs()
 	if len(ids) == 0 {
 		ids = []string{"apple", "claude", "wechat", "default", "elegant", "tech", "minimalist"}
 	}
@@ -134,17 +79,16 @@ func (tm *themeManager) ListThemes() []string {
 }
 
 func (tm *themeManager) GetAIPrompt(name string) (string, error) {
-	_, err := tm.GetTheme(name)
-	if err != nil {
+	if _, err := tm.GetTheme(name); err != nil {
 		return "", err
 	}
 	return getBuiltinPrompt(name), nil
 }
 
 func (tm *themeManager) GetStyle(name string) (map[string]string, error) {
-	t, err := tm.GetTheme(name)
-	if err != nil {
-		return nil, err
+	t := theme.GetThemeByName(name)
+	if t.ID == "" && t.Name == "" {
+		return nil, fmt.Errorf("theme not found: %s", name)
 	}
 	return t.Styles, nil
 }

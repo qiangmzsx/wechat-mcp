@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/yuin/goldmark"
+	"go.uber.org/zap"
 )
 
 type Converter struct {
@@ -62,12 +64,14 @@ func PreprocessMarkdown(content string) string {
 }
 
 func (c *Converter) Convert(markdown string) string {
+	logger.Debug("converting markdown", zap.String("theme", c.theme.ID), zap.Bool("grids", c.enableGrids))
 	markdown = PreprocessMarkdown(markdown)
 
 	md := goldmark.New()
 
 	var buf strings.Builder
 	if err := md.Convert([]byte(markdown), &buf); err != nil {
+		logger.Error("goldmark conversion failed", zap.Error(err))
 		return ""
 	}
 
@@ -81,10 +85,9 @@ func (c *Converter) Convert(markdown string) string {
 
 	html = c.processListStylesSimple(html)
 
-	// 移除多余的换行符，防止微信公众号显示 \n 排版错误
-	// 保留 <pre> 标签内的换行符（代码块）
 	html = c.removeExtraNewlines(html)
 
+	logger.Debug("markdown conversion completed", zap.String("theme", c.theme.ID))
 	return html
 }
 

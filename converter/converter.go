@@ -9,12 +9,13 @@ import (
 	"strings"
 
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/qiangmzsx/wechat-mcp/provider"
 	"github.com/qiangmzsx/wechat-mcp/provider/factory"
 	"go.uber.org/zap"
 )
 
-func NewConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
+func NewConverter(cfg *config.Config) (Converter, error) {
 	convType := cfg.Converter.Type
 	if convType == "" {
 		convType = config.ConverterTypeAPI
@@ -22,18 +23,17 @@ func NewConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
 
 	switch convType {
 	case config.ConverterTypeAI:
-		return NewAIConverter(cfg, log)
+		return NewAIConverter(cfg)
 	case config.ConverterTypeAPI:
-		return NewAPIConverter(log), nil
+		return NewAPIConverter(), nil
 	default:
-		log.Warn("unknown converter type, using API converter", zap.String("type", string(convType)))
-		return NewAPIConverter(log), nil
+		logger.Warn("unknown converter type, using API converter", zap.String("type", string(convType)))
+		return NewAPIConverter(), nil
 	}
 }
 
 // aiConverter AI 模式转换器
 type aiConverter struct {
-	log    *zap.Logger
 	config config.ConverterConfig
 	client provider.Provider
 	theme  ThemeManager
@@ -41,7 +41,7 @@ type aiConverter struct {
 }
 
 // NewAIConverter 创建 AI 转换器
-func NewAIConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
+func NewAIConverter(cfg *config.Config) (Converter, error) {
 	if !cfg.Converter.Enabled {
 		return nil, fmt.Errorf("converter is disabled")
 	}
@@ -56,7 +56,6 @@ func NewAIConverter(cfg *config.Config, log *zap.Logger) (Converter, error) {
 	themeMgr := NewThemeManager()
 
 	return &aiConverter{
-		log:    log,
 		config: cfg.Converter,
 		client: client,
 		theme:  themeMgr,
@@ -104,7 +103,7 @@ func (c *aiConverter) Convert(req *ConvertRequest) *ConvertResult {
 	)
 	if err != nil {
 		result.Error = fmt.Sprintf("AI generation failed: %s", err.Error())
-		c.log.Error("AI conversion failed",
+		logger.Error("AI conversion failed",
 			zap.String("theme", req.Theme),
 			zap.Error(err))
 		return result
@@ -117,13 +116,14 @@ func (c *aiConverter) Convert(req *ConvertRequest) *ConvertResult {
 	}
 
 	html := resp.Content
-
+	logger.Debug("AI HTML result", zap.String("src_html", html))
 	html = c.processImagePlaceholders(html, images)
 
 	result.HTML = FormatHTML(html)
+
 	result.Success = true
 
-	c.log.Info("AI conversion succeeded",
+	logger.Info("AI conversion succeeded",
 		zap.String("theme", req.Theme),
 		zap.Int("image_count", len(images)),
 		zap.Int("html_length", len(html)))
@@ -159,14 +159,14 @@ func (c *aiConverter) buildPrompt(req *ConvertRequest) (string, error) {
 	themePrompt, err := c.theme.GetAIPrompt(req.Theme)
 	if err != nil {
 		// 降级到默认主题
-		c.log.Warn("theme not found, using default", zap.String("theme", req.Theme))
+		logger.Warn("theme not found, using default", zap.String("theme", req.Theme))
 		themePrompt, _ = c.theme.GetAIPrompt("default")
 	}
 
 	// 获取主题风格配置
 	style, err := c.theme.GetStyle(req.Theme)
 	if err != nil {
-		c.log.Warn("failed to get theme style, using defaults", zap.String("theme", req.Theme), zap.Error(err))
+		logger.Warn("failed to get theme style, using defaults", zap.String("theme", req.Theme), zap.Error(err))
 		style = map[string]string{
 			"primary_color":    "#333333",
 			"secondary_color":  "#666666",
@@ -237,7 +237,7 @@ func (c *aiConverter) processImagePlaceholders(htmlContent string, images []Imag
 		}
 	}
 
-	result = ReplaceImagesWithBase64WithLogger(result, images, c.log)
+	result = ReplaceImagesWithBase64(result, images)
 
 	return result
 }

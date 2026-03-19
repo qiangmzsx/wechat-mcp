@@ -12,6 +12,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/qiangmzsx/wechat-mcp/config"
 	"github.com/qiangmzsx/wechat-mcp/converter"
+	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/qiangmzsx/wechat-mcp/wechat"
 	"github.com/silenceper/wechat/v2/officialaccount/draft"
 	"go.uber.org/zap"
@@ -23,19 +24,18 @@ type Server struct {
 	converter   converter.Converter
 	aiConverter converter.Converter
 	config      *config.Config
-	log         *zap.Logger
 }
 
 // New 创建MCP服务器
-func New(cfg *config.Config, logger *zap.Logger) *Server {
-	svc := wechat.NewService(cfg, logger)
+func New(cfg *config.Config) *Server {
+	svc := wechat.NewService(cfg)
 
 	var conv converter.Converter
 	var aiConv converter.Converter
 	var err error
 
 	// 创建默认转换器
-	conv, err = converter.NewConverter(cfg, logger)
+	conv, err = converter.NewConverter(cfg)
 	if err != nil {
 		logger.Warn("converter initialization failed, using simple converter", zap.Error(err))
 		conv = converter.NewSimpleConverter()
@@ -43,7 +43,7 @@ func New(cfg *config.Config, logger *zap.Logger) *Server {
 
 	// 创建 AI 转换器（如果启用）
 	if cfg.Converter.Enabled {
-		aiConv, err = converter.NewAIConverter(cfg, logger)
+		aiConv, err = converter.NewAIConverter(cfg)
 		if err != nil {
 			logger.Warn("AI converter initialization failed", zap.Error(err))
 			aiConv = conv
@@ -57,13 +57,12 @@ func New(cfg *config.Config, logger *zap.Logger) *Server {
 		converter:   conv,
 		aiConverter: aiConv,
 		config:      cfg,
-		log:         logger,
 	}
 }
 
 // Run 启动服务器
 func (s *Server) Run() error {
-	s.log.Info("Initializing MCP Server",
+	logger.Info("Initializing MCP Server",
 		zap.String("name", "WeChat MCP Server"),
 		zap.String("version", "1.0.0"),
 		zap.String("protocol", s.config.MCP.Protocol),
@@ -80,7 +79,7 @@ func (s *Server) Run() error {
 
 	// 注册工具
 	s.registerTools(mcpServer)
-	s.log.Info("MCP tools registered successfully")
+	logger.Info("MCP tools registered successfully")
 
 	// 根据配置选择协议
 	switch s.config.MCP.Protocol {
@@ -89,7 +88,7 @@ func (s *Server) Run() error {
 	case "sse":
 		return s.runSSE(mcpServer)
 	default:
-		s.log.Info("Starting STDIO server (waiting for client connection...)")
+		logger.Info("Starting STDIO server (waiting for client connection...)")
 		return server.ServeStdio(mcpServer)
 	}
 }
@@ -97,7 +96,7 @@ func (s *Server) Run() error {
 // runHTTP 启动HTTP服务器
 func (s *Server) runHTTP(mcpServer *server.MCPServer) error {
 	addr := fmt.Sprintf("%s:%d", s.config.MCP.Host, s.config.MCP.Port)
-	s.log.Info("Starting StreamableHTTP server",
+	logger.Info("Starting StreamableHTTP server",
 		zap.String("addr", addr),
 	)
 
@@ -112,7 +111,7 @@ func (s *Server) runHTTP(mcpServer *server.MCPServer) error {
 	}
 
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		s.log.Error("HTTP server failed to start", zap.Error(err))
+		logger.Error("HTTP server failed to start", zap.Error(err))
 		return err
 	}
 	return nil
@@ -121,7 +120,7 @@ func (s *Server) runHTTP(mcpServer *server.MCPServer) error {
 // runSSE 启动SSE服务器
 func (s *Server) runSSE(mcpServer *server.MCPServer) error {
 	addr := fmt.Sprintf("%s:%d", s.config.MCP.Host, s.config.MCP.Port)
-	s.log.Info("Starting SSE server",
+	logger.Info("Starting SSE server",
 		zap.String("addr", addr),
 	)
 
@@ -136,7 +135,7 @@ func (s *Server) runSSE(mcpServer *server.MCPServer) error {
 	}
 
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		s.log.Error("SSE server failed to start", zap.Error(err))
+		logger.Error("SSE server failed to start", zap.Error(err))
 		return err
 	}
 	return nil
@@ -154,13 +153,13 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		s.log.Warn("Failed to encode health response", zap.Error(err))
+		logger.Warn("Failed to encode health response", zap.Error(err))
 	}
 }
 
 // registerTools 注册所有工具
 func (s *Server) registerTools(mcpServer *server.MCPServer) {
-	s.log.Debug("Registering MCP tools...")
+	logger.Debug("Registering MCP tools...")
 
 	// 1. 上传素材工具
 	mcpServer.AddTool(
@@ -176,7 +175,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 		s.uploadMaterialHandler,
 	)
-	s.log.Debug("Tool registered: upload_material")
+	logger.Debug("Tool registered: upload_material")
 
 	// 2. 创建草稿工具
 	mcpServer.AddTool(
@@ -212,7 +211,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 		s.createDraftHandler,
 	)
-	s.log.Debug("Tool registered: create_draft")
+	logger.Debug("Tool registered: create_draft")
 
 	// 3. 创建小绿书草稿工具
 	mcpServer.AddTool(
@@ -234,7 +233,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 		s.createNewspicDraftHandler,
 	)
-	s.log.Debug("Tool registered: create_newspic_draft")
+	logger.Debug("Tool registered: create_newspic_draft")
 
 	// 4. 获取AccessToken工具
 	mcpServer.AddTool(
@@ -243,7 +242,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 		s.getAccessTokenHandler,
 	)
-	s.log.Debug("Tool registered: get_access_token")
+	logger.Debug("Tool registered: get_access_token")
 
 	// 5. 下载文件工具
 	mcpServer.AddTool(
@@ -256,7 +255,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 		s.downloadFileHandler,
 	)
-	s.log.Debug("Tool registered: download_file")
+	logger.Debug("Tool registered: download_file")
 
 	// 6. Markdown转HTML工具
 	mcpServer.AddTool(
@@ -278,7 +277,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 		s.convertMarkdownHandler,
 	)
-	s.log.Debug("Tool registered: convert_markdown")
+	logger.Debug("Tool registered: convert_markdown")
 
 	// 7. 列出可用主题工具
 	mcpServer.AddTool(
@@ -287,7 +286,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 		s.listThemesHandler,
 	)
-	s.log.Debug("Tool registered: list_themes")
+	logger.Debug("Tool registered: list_themes")
 }
 
 // ========== 工具处理器 ==========
@@ -297,17 +296,17 @@ func (s *Server) uploadMaterialHandler(ctx context.Context, request mcp.CallTool
 	startTime := time.Now()
 	toolName := "upload_material"
 
-	s.log.Info("Tool called", zap.String("tool", toolName))
+	logger.Info("Tool called", zap.String("tool", toolName))
 
 	args := request.GetArguments()
 	filePath, ok := args["file_path"].(string)
 	if !ok || filePath == "" {
-		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "file_path"))
+		logger.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "file_path"))
 		return mcp.NewToolResultError("file_path is required"), nil
 	}
 
 	retry, _ := args["retry"].(bool)
-	s.log.Debug("Tool arguments",
+	logger.Debug("Tool arguments",
 		zap.String("tool", toolName),
 		zap.String("file_path", filePath),
 		zap.Bool("retry", retry),
@@ -317,7 +316,7 @@ func (s *Server) uploadMaterialHandler(ctx context.Context, request mcp.CallTool
 	var err error
 
 	if retry {
-		s.log.Debug("Using retry mechanism", zap.String("tool", toolName), zap.Int("max_retries", 3))
+		logger.Debug("Using retry mechanism", zap.String("tool", toolName), zap.Int("max_retries", 3))
 		result, err = s.svc.UploadMaterialWithRetry(filePath, 3)
 	} else {
 		result, err = s.svc.UploadMaterial(filePath)
@@ -326,7 +325,7 @@ func (s *Server) uploadMaterialHandler(ctx context.Context, request mcp.CallTool
 	duration := time.Since(startTime)
 
 	if err != nil {
-		s.log.Error("Tool execution failed",
+		logger.Error("Tool execution failed",
 			zap.String("tool", toolName),
 			zap.Error(err),
 			zap.Duration("duration", duration),
@@ -334,7 +333,7 @@ func (s *Server) uploadMaterialHandler(ctx context.Context, request mcp.CallTool
 		return mcp.NewToolResultError(fmt.Sprintf("upload failed: %v", err)), nil
 	}
 
-	s.log.Info("Tool executed successfully",
+	logger.Info("Tool executed successfully",
 		zap.String("tool", toolName),
 		zap.String("media_id", maskMediaID(result.MediaID)),
 		zap.Duration("duration", duration),
@@ -348,19 +347,19 @@ func (s *Server) createDraftHandler(ctx context.Context, request mcp.CallToolReq
 	startTime := time.Now()
 	toolName := "create_draft"
 
-	s.log.Info("Tool called", zap.String("tool", toolName))
+	logger.Info("Tool called", zap.String("tool", toolName))
 
 	args := request.GetArguments()
 
 	title, ok := args["title"].(string)
 	if !ok || title == "" {
-		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "title"))
+		logger.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "title"))
 		return mcp.NewToolResultError("title is required"), nil
 	}
 
 	content, ok := args["content"].(string)
 	if !ok || content == "" {
-		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "content"))
+		logger.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "content"))
 		return mcp.NewToolResultError("content is required"), nil
 	}
 
@@ -380,7 +379,7 @@ func (s *Server) createDraftHandler(ctx context.Context, request mcp.CallToolReq
 		onlyFansCanComment = 1
 	}
 
-	s.log.Debug("Tool arguments",
+	logger.Debug("Tool arguments",
 		zap.String("tool", toolName),
 		zap.String("title", title),
 		zap.String("author", author),
@@ -404,7 +403,7 @@ func (s *Server) createDraftHandler(ctx context.Context, request mcp.CallToolReq
 	duration := time.Since(startTime)
 
 	if err != nil {
-		s.log.Error("Tool execution failed",
+		logger.Error("Tool execution failed",
 			zap.String("tool", toolName),
 			zap.Error(err),
 			zap.Duration("duration", duration),
@@ -412,7 +411,7 @@ func (s *Server) createDraftHandler(ctx context.Context, request mcp.CallToolReq
 		return mcp.NewToolResultError(fmt.Sprintf("create draft failed: %v", err)), nil
 	}
 
-	s.log.Info("Tool executed successfully",
+	logger.Info("Tool executed successfully",
 		zap.String("tool", toolName),
 		zap.String("media_id", maskMediaID(result.MediaID)),
 		zap.Duration("duration", duration),
@@ -426,30 +425,30 @@ func (s *Server) createNewspicDraftHandler(ctx context.Context, request mcp.Call
 	startTime := time.Now()
 	toolName := "create_newspic_draft"
 
-	s.log.Info("Tool called", zap.String("tool", toolName))
+	logger.Info("Tool called", zap.String("tool", toolName))
 
 	args := request.GetArguments()
 
 	title, ok := args["title"].(string)
 	if !ok || title == "" {
-		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "title"))
+		logger.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "title"))
 		return mcp.NewToolResultError("title is required"), nil
 	}
 
 	content, ok := args["content"].(string)
 	if !ok || content == "" {
-		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "content"))
+		logger.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "content"))
 		return mcp.NewToolResultError("content is required"), nil
 	}
 
 	// 处理图片
 	imagePaths, ok := args["image_paths"].([]any)
 	if !ok || len(imagePaths) == 0 {
-		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "image_paths"))
+		logger.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "image_paths"))
 		return mcp.NewToolResultError("image_paths is required and must not be empty"), nil
 	}
 
-	s.log.Debug("Uploading images for newspic",
+	logger.Debug("Uploading images for newspic",
 		zap.String("tool", toolName),
 		zap.Int("image_count", len(imagePaths)),
 	)
@@ -459,15 +458,15 @@ func (s *Server) createNewspicDraftHandler(ctx context.Context, request mcp.Call
 	for i, path := range imagePaths {
 		pathStr, ok := path.(string)
 		if !ok {
-			s.log.Warn("Invalid image path type", zap.String("tool", toolName), zap.Int("index", i))
+			logger.Warn("Invalid image path type", zap.String("tool", toolName), zap.Int("index", i))
 			continue
 		}
 
-		s.log.Debug("Uploading image", zap.String("tool", toolName), zap.Int("index", i), zap.String("path", pathStr))
+		logger.Debug("Uploading image", zap.String("tool", toolName), zap.Int("index", i), zap.String("path", pathStr))
 
 		result, err := s.svc.UploadMaterial(pathStr)
 		if err != nil {
-			s.log.Error("Image upload failed",
+			logger.Error("Image upload failed",
 				zap.String("tool", toolName),
 				zap.Int("index", i),
 				zap.Error(err),
@@ -489,13 +488,13 @@ func (s *Server) createNewspicDraftHandler(ctx context.Context, request mcp.Call
 		},
 	}
 
-	s.log.Debug("Creating newspic draft", zap.String("tool", toolName))
+	logger.Debug("Creating newspic draft", zap.String("tool", toolName))
 
 	result, err := s.svc.CreateNewspicDraft([]wechat.NewspicArticle{newspicArticle})
 	duration := time.Since(startTime)
 
 	if err != nil {
-		s.log.Error("Tool execution failed",
+		logger.Error("Tool execution failed",
 			zap.String("tool", toolName),
 			zap.Error(err),
 			zap.Duration("duration", duration),
@@ -503,7 +502,7 @@ func (s *Server) createNewspicDraftHandler(ctx context.Context, request mcp.Call
 		return mcp.NewToolResultError(fmt.Sprintf("create newspic draft failed: %v", err)), nil
 	}
 
-	s.log.Info("Tool executed successfully",
+	logger.Info("Tool executed successfully",
 		zap.String("tool", toolName),
 		zap.String("media_id", maskMediaID(result.MediaID)),
 		zap.Duration("duration", duration),
@@ -517,13 +516,13 @@ func (s *Server) getAccessTokenHandler(ctx context.Context, request mcp.CallTool
 	startTime := time.Now()
 	toolName := "get_access_token"
 
-	s.log.Info("Tool called", zap.String("tool", toolName))
+	logger.Info("Tool called", zap.String("tool", toolName))
 
 	result, err := s.svc.GetAccessToken()
 	duration := time.Since(startTime)
 
 	if err != nil {
-		s.log.Error("Tool execution failed",
+		logger.Error("Tool execution failed",
 			zap.String("tool", toolName),
 			zap.Error(err),
 			zap.Duration("duration", duration),
@@ -531,7 +530,7 @@ func (s *Server) getAccessTokenHandler(ctx context.Context, request mcp.CallTool
 		return mcp.NewToolResultError(fmt.Sprintf("get access token failed: %v", err)), nil
 	}
 
-	s.log.Info("Tool executed successfully",
+	logger.Info("Tool executed successfully",
 		zap.String("tool", toolName),
 		zap.Duration("duration", duration),
 	)
@@ -544,17 +543,17 @@ func (s *Server) downloadFileHandler(ctx context.Context, request mcp.CallToolRe
 	startTime := time.Now()
 	toolName := "download_file"
 
-	s.log.Info("Tool called", zap.String("tool", toolName))
+	logger.Info("Tool called", zap.String("tool", toolName))
 
 	args := request.GetArguments()
 
 	urlOrPath, ok := args["url_or_path"].(string)
 	if !ok || urlOrPath == "" {
-		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "url_or_path"))
+		logger.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "url_or_path"))
 		return mcp.NewToolResultError("url_or_path is required"), nil
 	}
 
-	s.log.Debug("Downloading file",
+	logger.Debug("Downloading file",
 		zap.String("tool", toolName),
 		zap.String("url_or_path", urlOrPath),
 	)
@@ -563,7 +562,7 @@ func (s *Server) downloadFileHandler(ctx context.Context, request mcp.CallToolRe
 	duration := time.Since(startTime)
 
 	if err != nil {
-		s.log.Error("Tool execution failed",
+		logger.Error("Tool execution failed",
 			zap.String("tool", toolName),
 			zap.Error(err),
 			zap.Duration("duration", duration),
@@ -571,7 +570,7 @@ func (s *Server) downloadFileHandler(ctx context.Context, request mcp.CallToolRe
 		return mcp.NewToolResultError(fmt.Sprintf("download file failed: %v", err)), nil
 	}
 
-	s.log.Info("Tool executed successfully",
+	logger.Info("Tool executed successfully",
 		zap.String("tool", toolName),
 		zap.String("local_path", path),
 		zap.Duration("duration", duration),
@@ -585,13 +584,13 @@ func (s *Server) convertMarkdownHandler(ctx context.Context, request mcp.CallToo
 	startTime := time.Now()
 	toolName := "convert_markdown"
 
-	s.log.Info("Tool called", zap.String("tool", toolName))
+	logger.Info("Tool called", zap.String("tool", toolName))
 
 	args := request.GetArguments()
 
 	markdown, ok := args["markdown"].(string)
 	if !ok || markdown == "" {
-		s.log.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "markdown"))
+		logger.Warn("Tool argument missing", zap.String("tool", toolName), zap.String("argument", "markdown"))
 		return mcp.NewToolResultError("markdown is required"), nil
 	}
 
@@ -599,7 +598,7 @@ func (s *Server) convertMarkdownHandler(ctx context.Context, request mcp.CallToo
 	customPrompt, _ := args["custom_prompt"].(string)
 	converterTypeStr, _ := args["converter_type"].(string)
 
-	s.log.Debug("Tool arguments",
+	logger.Debug("Tool arguments",
 		zap.String("tool", toolName),
 		zap.String("theme", themeArg),
 		zap.Bool("has_custom_prompt", customPrompt != ""),
@@ -621,16 +620,16 @@ func (s *Server) convertMarkdownHandler(ctx context.Context, request mcp.CallToo
 	}
 
 	if convType == config.ConverterTypeAI {
-		s.log.Debug("Using AI converter", zap.String("tool", toolName))
+		logger.Debug("Using AI converter", zap.String("tool", toolName))
 		result = s.aiConverter.Convert(req)
 	} else {
-		s.log.Debug("Using API converter", zap.String("tool", toolName))
+		logger.Debug("Using API converter", zap.String("tool", toolName))
 		result = s.converter.Convert(req)
 	}
 	duration := time.Since(startTime)
 
 	if !result.Success {
-		s.log.Error("Tool execution failed",
+		logger.Error("Tool execution failed",
 			zap.String("tool", toolName),
 			zap.Error(fmt.Errorf(result.Error)),
 			zap.Duration("duration", duration),
@@ -638,7 +637,7 @@ func (s *Server) convertMarkdownHandler(ctx context.Context, request mcp.CallToo
 		return mcp.NewToolResultError(fmt.Sprintf("convert failed: %s", result.Error)), nil
 	}
 
-	s.log.Info("Tool executed successfully",
+	logger.Info("Tool executed successfully",
 		zap.String("tool", toolName),
 		zap.String("theme", result.Theme),
 		zap.Int("image_count", len(result.Images)),
@@ -654,12 +653,12 @@ func (s *Server) convertMarkdownHandler(ctx context.Context, request mcp.CallToo
 func (s *Server) listThemesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	toolName := "list_themes"
 
-	s.log.Info("Tool called", zap.String("tool", toolName))
+	logger.Info("Tool called", zap.String("tool", toolName))
 
 	themeMgr := s.converter.GetThemeManager()
 	themes := themeMgr.ListThemes()
 
-	s.log.Info("Tool executed successfully",
+	logger.Info("Tool executed successfully",
 		zap.String("tool", toolName),
 		zap.Int("theme_count", len(themes)),
 	)

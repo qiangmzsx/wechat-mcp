@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/qiangmzsx/wechat-mcp/mcp"
 	"go.uber.org/zap"
 )
@@ -23,12 +24,15 @@ func main() {
 	}
 
 	// 创建日志
-	logger, err := cfg.NewLogger()
+	zapLogger, err := cfg.NewLogger()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "创建日志失败: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer zapLogger.Sync()
+
+	// 初始化全局 logger
+	logger.InitWithLogger(zapLogger)
 
 	logger.Info("Starting WeChat MCP Server",
 		zap.String("config_path", *configPath),
@@ -54,7 +58,7 @@ func main() {
 	)
 
 	// 创建并运行MCP服务器
-	server := mcp.New(cfg, logger)
+	server := mcp.New(cfg)
 	if err := server.Run(); err != nil {
 		logger.Error("Server stopped with error", zap.Error(err))
 		fmt.Fprintf(os.Stderr, "服务器运行失败: %v\n", err)

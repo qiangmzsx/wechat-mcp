@@ -2,13 +2,10 @@ package converter
 
 import (
 	"testing"
-
-	"go.uber.org/zap"
 )
 
 func TestAPIConverter_Convert(t *testing.T) {
-	logger := zap.NewNop()
-	conv := NewAPIConverter(logger)
+	conv := NewAPIConverter()
 
 	// 测试空 Markdown
 	req := &ConvertRequest{

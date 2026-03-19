@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/qiangmzsx/wechat-mcp/logger"
+	"go.uber.org/zap"
 )
 
 // Theme represents a visual theme for WeChat article formatting
@@ -39,20 +41,21 @@ func loadThemesFromDir() {
 	}
 	themesLoaded = true
 
-	// Get the themes directory
 	themeDir := getThemesDir()
+	logger.Debug("loading themes from directory", zap.String("dir", themeDir))
 
-	// Check if directory exists
 	if _, err := os.Stat(themeDir); os.IsNotExist(err) {
+		logger.Warn("themes directory does not exist", zap.String("dir", themeDir))
 		return
 	}
 
-	// Read all TOML files
 	entries, err := os.ReadDir(themeDir)
 	if err != nil {
+		logger.Error("failed to read themes directory", zap.Error(err))
 		return
 	}
 
+	loadedCount := 0
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -64,11 +67,14 @@ func loadThemesFromDir() {
 		themePath := filepath.Join(themeDir, entry.Name())
 		theme, err := loadThemeFromFile(themePath)
 		if err != nil {
+			logger.Warn("failed to load theme file", zap.String("path", themePath), zap.Error(err))
 			continue
 		}
-
+		logger.Debug("theme Name", zap.String("theme_name", entry.Name()))
 		themeCache[theme.ID] = theme
+		loadedCount++
 	}
+	logger.Info("themes loaded successfully", zap.Int("count", loadedCount))
 }
 
 func getThemesDir() string {

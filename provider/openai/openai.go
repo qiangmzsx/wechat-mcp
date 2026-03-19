@@ -1,4 +1,4 @@
-// Package openai 提供 OpenAI 及兼容 API 供应商实现
+// Package openai provides OpenAI and compatible API provider implementation
 package openai
 
 import (
@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/qiangmzsx/wechat-mcp/provider"
+	"go.uber.org/zap"
 )
 
 // Client OpenAI API 客户端
@@ -54,6 +56,8 @@ func (c *Client) DefaultModel() string {
 
 // Chat 发送聊天请求
 func (c *Client) Chat(ctx context.Context, req provider.ChatRequest) (*provider.ChatResponse, error) {
+	logger.Debug("OpenAI API: sending chat request", zap.String("model", c.resolveModel(req.Model)))
+
 	// 构建请求体
 	body := map[string]interface{}{
 		"model":    c.resolveModel(req.Model),
@@ -77,6 +81,7 @@ func (c *Client) Chat(ctx context.Context, req provider.ChatRequest) (*provider.
 	// 发送请求
 	respBody, err := c.doRequest(ctx, "/chat/completions", body)
 	if err != nil {
+		logger.Error("OpenAI API request failed", zap.Error(err))
 		return nil, err
 	}
 	defer respBody.Close()
@@ -84,13 +89,16 @@ func (c *Client) Chat(ctx context.Context, req provider.ChatRequest) (*provider.
 	// 解析响应
 	var resp chatCompletionResponse
 	if err := json.NewDecoder(respBody).Decode(&resp); err != nil {
+		logger.Error("OpenAI response decode failed", zap.Error(err))
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {
+		logger.Warn("OpenAI API returned no choices")
 		return nil, fmt.Errorf("no response choices")
 	}
 
+	logger.Debug("OpenAI API response received", zap.Int("total_tokens", resp.Usage.TotalTokens))
 	return &provider.ChatResponse{
 		Content:      resp.Choices[0].Message.Content,
 		FinishReason: resp.Choices[0].FinishReason,
@@ -104,6 +112,8 @@ func (c *Client) Chat(ctx context.Context, req provider.ChatRequest) (*provider.
 
 // ChatStream 流式聊天
 func (c *Client) ChatStream(ctx context.Context, req provider.ChatRequest, onChunk func(provider.StreamChunk)) (*provider.ChatResponse, error) {
+	logger.Debug("OpenAI API: starting streaming chat", zap.String("model", c.resolveModel(req.Model)))
+
 	// 构建请求体
 	body := map[string]interface{}{
 		"model":    c.resolveModel(req.Model),
@@ -122,6 +132,7 @@ func (c *Client) ChatStream(ctx context.Context, req provider.ChatRequest, onChu
 	// 发送请求
 	respBody, err := c.doRequest(ctx, "/chat/completions", body)
 	if err != nil {
+		logger.Error("OpenAI stream request failed", zap.Error(err))
 		return nil, err
 	}
 	defer respBody.Close()
@@ -164,9 +175,11 @@ func (c *Client) ChatStream(ctx context.Context, req provider.ChatRequest, onChu
 	}
 
 	if err := scanner.Err(); err != nil {
+		logger.Error("OpenAI stream read error", zap.Error(err))
 		return nil, fmt.Errorf("stream read error: %w", err)
 	}
 
+	logger.Debug("OpenAI streaming completed")
 	return &provider.ChatResponse{
 		Content:      content,
 		FinishReason: "stop",
@@ -196,14 +209,17 @@ func (c *Client) doRequest(ctx context.Context, path string, body interface{}) (
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 
+	logger.Debug("OpenAI HTTP request", zap.String("url", c.baseURL+path))
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
+		logger.Error("OpenAI HTTP request failed", zap.Error(err))
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		logger.Error("OpenAI HTTP error response", zap.Int("status", resp.StatusCode), zap.String("body", string(respBody)))
 		return nil, fmt.Errorf("API error: %s", string(respBody))
 	}
 

@@ -8,7 +8,9 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/qiangmzsx/wechat-mcp/provider"
+	"go.uber.org/zap"
 )
 
 // Client Anthropic API client
@@ -53,6 +55,8 @@ func (c *Client) DefaultModel() string {
 
 // Chat sends chat request
 func (c *Client) Chat(ctx context.Context, req provider.ChatRequest) (*provider.ChatResponse, error) {
+	logger.Debug("Anthropic API: sending chat request", zap.String("model", string(c.resolveModel(req.Model))))
+
 	// Build request params
 	params := anthropic.MessageNewParams{
 		Model:     c.resolveModel(req.Model),
@@ -82,6 +86,7 @@ func (c *Client) Chat(ctx context.Context, req provider.ChatRequest) (*provider.
 	// Send request
 	message, err := c.client.Messages.New(ctx, params)
 	if err != nil {
+		logger.Error("Anthropic API error", zap.Error(err))
 		return nil, fmt.Errorf("anthropic API error: %w", err)
 	}
 
@@ -93,6 +98,7 @@ func (c *Client) Chat(ctx context.Context, req provider.ChatRequest) (*provider.
 		}
 	}
 
+	logger.Debug("Anthropic API response received", zap.Int("tokens", int(message.Usage.InputTokens+message.Usage.OutputTokens)))
 	return &provider.ChatResponse{
 		Content:      content,
 		FinishReason: string(message.StopReason),
@@ -106,6 +112,8 @@ func (c *Client) Chat(ctx context.Context, req provider.ChatRequest) (*provider.
 
 // ChatStream streaming chat
 func (c *Client) ChatStream(ctx context.Context, req provider.ChatRequest, onChunk func(provider.StreamChunk)) (*provider.ChatResponse, error) {
+	logger.Debug("Anthropic API: starting streaming chat", zap.String("model", string(c.resolveModel(req.Model))))
+
 	// Build request params
 	params := anthropic.MessageNewParams{
 		Model:     c.resolveModel(req.Model),
@@ -135,6 +143,7 @@ func (c *Client) ChatStream(ctx context.Context, req provider.ChatRequest, onChu
 		event := stream.Current()
 		err := message.Accumulate(event)
 		if err != nil {
+			logger.Error("Anthropic stream accumulate error", zap.Error(err))
 			return nil, fmt.Errorf("accumulate event: %w", err)
 		}
 
@@ -156,9 +165,11 @@ func (c *Client) ChatStream(ctx context.Context, req provider.ChatRequest, onChu
 	}
 
 	if stream.Err() != nil {
+		logger.Error("Anthropic stream error", zap.Error(stream.Err()))
 		return nil, fmt.Errorf("stream error: %w", stream.Err())
 	}
 
+	logger.Debug("Anthropic streaming completed")
 	return &provider.ChatResponse{
 		Content:      content,
 		FinishReason: string(message.StopReason),
