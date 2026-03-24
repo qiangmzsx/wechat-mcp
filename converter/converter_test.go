@@ -8,7 +8,6 @@ import (
 
 	"github.com/qiangmzsx/wechat-mcp/config"
 	"github.com/qiangmzsx/wechat-mcp/provider"
-	"go.uber.org/zap"
 )
 
 func TestExtractImages(t *testing.T) {
@@ -46,11 +45,11 @@ func TestExtractImages(t *testing.T) {
 			name: "multiple images",
 			markdown: `![alt1](./image1.png)
 
-Some text
+ Some text
 
-![alt2](https://example.com/image2.png)
+ ![alt2](https://example.com/image2.png)
 
-![alt3](__generate:AI prompt__)`,
+ ![alt3](__generate:AI prompt__)`,
 			want: 3,
 		},
 	}
@@ -163,7 +162,7 @@ func TestAIConverter_NewAIConverter(t *testing.T) {
 			Enabled: false,
 		},
 	}
-	_, err := NewAIConverter(disabledCfg, zap.NewNop())
+	_, err := NewAIConverter(disabledCfg)
 	if err == nil {
 		t.Error("NewAIConverter with disabled converter should return error")
 	}
@@ -172,14 +171,11 @@ func TestAIConverter_NewAIConverter(t *testing.T) {
 	}
 }
 
-// TestAIConverter_ProviderAnthropic 测试 Anthropic Provider
 func TestAIConverter_ProviderAnthropic(t *testing.T) {
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
 		t.Skip("Skipping: ANTHROPIC_API_KEY not set")
 	}
-
-	logger := zap.NewNop()
 
 	cfg := &config.Config{
 		Converter: config.ConverterConfig{
@@ -193,7 +189,7 @@ func TestAIConverter_ProviderAnthropic(t *testing.T) {
 		},
 	}
 
-	conv, err := NewAIConverter(cfg, logger)
+	conv, err := NewAIConverter(cfg)
 	if err != nil {
 		t.Fatalf("Failed to create AI converter: %v", err)
 	}
@@ -221,14 +217,11 @@ func TestAIConverter_ProviderAnthropic(t *testing.T) {
 	t.Logf("Anthropic Provider test passed, HTML length: %d", len(result.HTML))
 }
 
-// TestAIConverter_ProviderOpenAI 测试 OpenAI Provider
 func TestAIConverter_ProviderOpenAI(t *testing.T) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Skip("Skipping: OPENAI_API_KEY not set")
 	}
-
-	logger := zap.NewNop()
 
 	cfg := &config.Config{
 		Converter: config.ConverterConfig{
@@ -242,7 +235,7 @@ func TestAIConverter_ProviderOpenAI(t *testing.T) {
 		},
 	}
 
-	conv, err := NewAIConverter(cfg, logger)
+	conv, err := NewAIConverter(cfg)
 	if err != nil {
 		t.Fatalf("Failed to create AI converter: %v", err)
 	}
@@ -270,8 +263,7 @@ func TestAIConverter_ProviderOpenAI(t *testing.T) {
 	t.Logf("OpenAI Provider test passed, HTML length: %d", len(result.HTML))
 }
 
-// TestAIConverter_ProviderDefault 测试默认 Provider (Anthropic)
-var cfg = &config.Config{
+var testCfg = &config.Config{
 	Converter: config.ConverterConfig{
 		Enabled:      true,
 		Provider:     "anthropic",
@@ -284,9 +276,7 @@ var cfg = &config.Config{
 }
 
 func TestAIConverter_Convert(t *testing.T) {
-	logger := zap.NewNop()
-
-	conv, err := NewAIConverter(cfg, logger)
+	conv, err := NewAIConverter(testCfg)
 	if err != nil {
 		t.Skipf("Skipping: cannot create AI converter: %v", err)
 	}
@@ -335,7 +325,6 @@ func TestAIConverter_Convert(t *testing.T) {
 }
 
 func TestAIConverter_Convert_OpenAI(t *testing.T) {
-	logger := zap.NewNop()
 	var cfg = &config.Config{
 		Converter: config.ConverterConfig{
 			Enabled:      true,
@@ -348,7 +337,7 @@ func TestAIConverter_Convert_OpenAI(t *testing.T) {
 		},
 	}
 
-	conv, err := NewAIConverter(cfg, logger)
+	conv, err := NewAIConverter(cfg)
 	if err != nil {
 		t.Skipf("Skipping: cannot create AI converter: %v", err)
 	}
@@ -397,9 +386,7 @@ func TestAIConverter_Convert_OpenAI(t *testing.T) {
 }
 
 func TestAIConverter_GetSystemPrompt(t *testing.T) {
-	logger := zap.NewNop()
-
-	conv, err := NewAIConverter(cfg, logger)
+	conv, err := NewAIConverter(testCfg)
 	if err != nil {
 		t.Skipf("Skipping: cannot create AI converter: %v", err)
 	}
@@ -415,7 +402,7 @@ func TestAIConverter_ExtractHTML(t *testing.T) {
 	// 直接创建 aiConverter 实例
 	themeMgr := NewThemeManager()
 	conv := &aiConverter{
-		config: cfg.Converter,
+		config: testCfg.Converter,
 		theme:  themeMgr,
 		prompt: NewPromptBuilder(),
 	}
@@ -463,7 +450,7 @@ func TestAIConverter_ExtractHTML(t *testing.T) {
 func TestAIConverter_ProcessImagePlaceholders(t *testing.T) {
 	themeMgr := NewThemeManager()
 	conv := &aiConverter{
-		config: cfg.Converter,
+		config: testCfg.Converter,
 		theme:  themeMgr,
 		prompt: NewPromptBuilder(),
 	}
@@ -495,7 +482,7 @@ func TestAIConverter_ProcessImagePlaceholders(t *testing.T) {
 func TestAIConverter_ProcessImagePlaceholders_WithRealImage(t *testing.T) {
 	themeMgr := NewThemeManager()
 	conv := &aiConverter{
-		config: cfg.Converter,
+		config: testCfg.Converter,
 		theme:  themeMgr,
 		prompt: NewPromptBuilder(),
 	}
@@ -530,9 +517,6 @@ func TestAIConverter_Convert_WithRealAPI(t *testing.T) {
 		t.Skip("Skipping: ANTHROPIC_API_KEY not set")
 	}
 
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
-
 	cfg := &config.Config{
 		Converter: config.ConverterConfig{
 			Enabled:      true,
@@ -541,7 +525,7 @@ func TestAIConverter_Convert_WithRealAPI(t *testing.T) {
 		},
 	}
 
-	conv, err := NewAIConverter(cfg, logger)
+	conv, err := NewAIConverter(cfg)
 	if err != nil {
 		t.Fatalf("Failed to create AI converter: %v", err)
 	}

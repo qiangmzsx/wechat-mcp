@@ -33,7 +33,7 @@ func (tm *themeManager) GetTheme(name string) (*Theme, error) {
 
 	logger.Debug("resolving theme", zap.String("name", name))
 	t := theme.GetThemeByName(name)
-	if t.ID == "" && t.Name == "" {
+	if t == nil || (t.ID == "" && t.Name == "") {
 		if !isKnownFallbackTheme(name) {
 			logger.Warn("theme not found", zap.String("name", name))
 			return nil, fmt.Errorf("theme not found: %s", name)
@@ -87,7 +87,7 @@ func (tm *themeManager) GetAIPrompt(name string) (string, error) {
 
 func (tm *themeManager) GetStyle(name string) (map[string]string, error) {
 	t := theme.GetThemeByName(name)
-	if t.ID == "" && t.Name == "" {
+	if t == nil || (t.ID == "" && t.Name == "") {
 		return nil, fmt.Errorf("theme not found: %s", name)
 	}
 	return t.Styles, nil

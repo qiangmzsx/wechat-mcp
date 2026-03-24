@@ -10,7 +10,7 @@
 - 创建小绿书（图片）草稿
 - 获取 AccessToken
 - 文件下载
-- **AI Markdown 转 HTML**（支持 Anthropic 和 OpenAI）
+- **AI/API Markdown 转 HTML**（支持 Anthropic 和 OpenAI）
 
 ## 环境要求
 
@@ -54,6 +54,8 @@ port = 7990
 
 # AI 转换器配置（可选）
 [converter]
+# 转换器类型: api (基于 goldmark，默认), ai (基于 LLM)
+type = "api"
 enabled = false                      # 是否启用 AI 转换功能
 provider = "anthropic"              # 供应商: anthropic, openai
 api_key = ""                        # API Key

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/internal/util"
 	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/qiangmzsx/wechat-mcp/mcp"
 	"go.uber.org/zap"
@@ -39,7 +40,7 @@ func main() {
 	)
 
 	logger.Info("Config loaded successfully",
-		zap.String("wechat_app_id", maskAppID(cfg.WechatAppID)),
+		zap.String("wechat_app_id", util.MaskAppID(cfg.WechatAppID)),
 		zap.String("log_level", cfg.Log.Level),
 		zap.String("log_format", cfg.Log.Format),
 		zap.String("protocol", cfg.MCP.Protocol),
@@ -66,12 +67,4 @@ func main() {
 	}
 
 	logger.Info("Server stopped gracefully")
-}
-
-// maskAppID 遮蔽 app_id 用于日志
-func maskAppID(id string) string {
-	if id == "" || len(id) < 8 {
-		return "***"
-	}
-	return id[:4] + "***" + id[len(id)-4:]
 }

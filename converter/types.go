@@ -188,7 +188,7 @@ func replacePlaceholder(html, placeholder, replacement string) string {
 
 // GeneratePlaceholder 生成图片占位符
 func GeneratePlaceholder(index int) string {
-	return "<!-- IMG:" + string(rune('0'+index)) + " -->"
+	return fmt.Sprintf("<!-- IMG:%d -->", index)
 }
 
 // ImageToBase64 将图片转换为 base64 编码

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/qiangmzsx/wechat-mcp/config"
+	"github.com/qiangmzsx/wechat-mcp/internal/util"
 	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/silenceper/wechat/v2"
 	wechatcache "github.com/silenceper/wechat/v2/cache"
@@ -80,7 +81,7 @@ func (s *Service) UploadMaterial(filePath string) (*UploadMaterialResult, error)
 	duration := time.Since(startTime)
 	logger.Info("material uploaded",
 		zap.String("path", filePath),
-		zap.String("media_id", maskMediaID(mediaID)),
+		zap.String("media_id", util.MaskID(mediaID)),
 		zap.Duration("duration", duration))
 
 	return &UploadMaterialResult{
@@ -112,7 +113,7 @@ func (s *Service) CreateDraft(articles []*draft.Article) (*CreateDraftResult, er
 
 	duration := time.Since(startTime)
 	logger.Info("draft created",
-		zap.String("media_id", maskMediaID(mediaID)),
+		zap.String("media_id", util.MaskID(mediaID)),
 		zap.Duration("duration", duration))
 
 	return &CreateDraftResult{
@@ -151,14 +152,6 @@ func (s *Service) GetAccessToken() (*AccessTokenResult, error) {
 		AccessToken: accessToken,
 		ExpiresIn:   7200,
 	}, nil
-}
-
-// maskMediaID 遮蔽 media_id 用于日志
-func maskMediaID(id string) string {
-	if id == "" || len(id) < 8 {
-		return "***"
-	}
-	return id[:4] + "***" + id[len(id)-4:]
 }
 
 // UploadMaterialWithRetry 带重试的上传
@@ -303,7 +296,7 @@ func (s *Service) CreateNewspicDraft(articles []NewspicArticle) (*CreateDraftRes
 
 	duration := time.Since(startTime)
 	logger.Info("newspic draft created",
-		zap.String("media_id", maskMediaID(resp.MediaID)),
+		zap.String("media_id", util.MaskID(resp.MediaID)),
 		zap.Duration("duration", duration))
 
 	return &CreateDraftResult{
