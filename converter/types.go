@@ -114,42 +114,34 @@ var (
 
 // imagePatterns 图片匹配正则表达式
 var (
-	localImagePattern  = regexp.MustCompile(`!\[([^\]]*)\]\((\.\/[^)]+)\)`)
+	localImagePattern  = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
 	onlineImagePattern = regexp.MustCompile(`!\[([^\]]*)\]\((https?://[^)]+)\)`)
 	aiImagePattern     = regexp.MustCompile(`!\[([^\]]*)\]\(__generate:([^)]+)__\)`)
 )
+
+// isHTTPOrAIImage 判断路径是否为 HTTP URL 或 AI 图片
+func isHTTPOrAIImage(path string) bool {
+	return strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") || strings.HasPrefix(path, "__generate:")
+}
 
 // ExtractImages 从 Markdown 中提取图片引用
 func ExtractImages(markdown string) []ImageRef {
 	var images []ImageRef
 
-	// 匹配本地图片: ![alt](./path/to/image.png)
-	for i, match := range localImagePattern.FindAllStringSubmatch(markdown, -1) {
+	// 匹配在线图片: ![alt](https://...) - 先匹配，避免被本地图片模式误匹配
+	for i, match := range onlineImagePattern.FindAllStringSubmatch(markdown, -1) {
 		if len(match) >= 3 {
 			images = append(images, ImageRef{
 				Index:       i,
 				Original:    match[2],
 				Placeholder: fmt.Sprintf("<!-- IMG:%d -->", i),
-				Type:        ImageTypeLocal,
-			})
-		}
-	}
-
-	// 匹配在线图片: ![alt](https://...)
-	offset := len(images)
-	for i, match := range onlineImagePattern.FindAllStringSubmatch(markdown, -1) {
-		if len(match) >= 3 {
-			images = append(images, ImageRef{
-				Index:       offset + i,
-				Original:    match[2],
-				Placeholder: fmt.Sprintf("<!-- IMG:%d -->", offset+i),
 				Type:        ImageTypeOnline,
 			})
 		}
 	}
 
-	// 匹配 AI 生成图片: ![alt](__generate:prompt__)
-	offset = len(images)
+	// 匹配 AI 生成图片: ![alt](__generate:prompt__) - 第二匹配，避免误匹配
+	offset := len(images)
 	for i, match := range aiImagePattern.FindAllStringSubmatch(markdown, -1) {
 		if len(match) >= 3 {
 			images = append(images, ImageRef{
@@ -158,6 +150,25 @@ func ExtractImages(markdown string) []ImageRef {
 				Placeholder: fmt.Sprintf("<!-- IMG:%d -->", offset+i),
 				Type:        ImageTypeAI,
 				AIPrompt:    match[2],
+			})
+		}
+	}
+
+	// 匹配本地图片: ![alt](./path/to/image.png) 或 ![alt](images/photo.jpg)
+	// 本地图片模式较宽泛，需要过滤掉 HTTP 和 AI 图片
+	offset = len(images)
+	for i, match := range localImagePattern.FindAllStringSubmatch(markdown, -1) {
+		if len(match) >= 3 {
+			path := match[2]
+			// 跳过 HTTP URL 和 AI 图片，这些已经在前面匹配过了
+			if isHTTPOrAIImage(path) {
+				continue
+			}
+			images = append(images, ImageRef{
+				Index:       offset + i,
+				Original:    path,
+				Placeholder: fmt.Sprintf("<!-- IMG:%d -->", offset+i),
+				Type:        ImageTypeLocal,
 			})
 		}
 	}

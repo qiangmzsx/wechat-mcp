@@ -52,6 +52,26 @@ func TestExtractImages(t *testing.T) {
  ![alt3](__generate:AI prompt__)`,
 			want: 3,
 		},
+		{
+			name:     "local image without ./ prefix",
+			markdown: "![alt](images/photo.jpg)",
+			want:     1,
+		},
+		{
+			name:     "local image subdirectory path",
+			markdown: "![alt](subdir/image.png)",
+			want:     1,
+		},
+		{
+			name:     "local image parent directory path",
+			markdown: "![alt](../images/photo.jpg)",
+			want:     1,
+		},
+		{
+			name:     "local image URL-encoded spaces",
+			markdown: "![alt](path%20with%20spaces.png)",
+			want:     1,
+		},
 	}
 
 	for _, tt := range tests {
