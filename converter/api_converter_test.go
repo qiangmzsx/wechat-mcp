@@ -28,7 +28,7 @@ func TestAPIConverter_Convert(t *testing.T) {
 支持朋友圈式的多列网格布局，比如下面自然形成的两图并排。通过 wechatCompat 引擎这些多图也能在微信中完美呈现：
 
 ![](https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&h=400&fit=crop)
-![](https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&h=400&fit=crop)
+![](/tmp/image-20260324171252844.png)
 
 ### 3. 30 套高定样式
 

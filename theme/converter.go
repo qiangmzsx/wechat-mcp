@@ -6,6 +6,7 @@ import (
 
 	"github.com/qiangmzsx/wechat-mcp/logger"
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 	"go.uber.org/zap"
 )
 
@@ -67,7 +68,9 @@ func (c *Converter) Convert(markdown string) string {
 	logger.Debug("converting markdown", zap.String("theme", c.theme.ID), zap.Bool("grids", c.enableGrids))
 	markdown = PreprocessMarkdown(markdown)
 
-	md := goldmark.New()
+	md := goldmark.New(
+		goldmark.WithExtensions(extension.Table),
+	)
 
 	var buf strings.Builder
 	if err := md.Convert([]byte(markdown), &buf); err != nil {
